@@ -216,7 +216,7 @@ export default function Index() {
             Ready to start your journey?
           </h2>
           <p className="text-primary-foreground/80 text-lg mb-8">
-            Join 10 lakh+ travelers who trust Trapy
+            Join 10 lakh+ travelers who trust Trapy. India's Most Trusted Ride Network.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link to="/search">
