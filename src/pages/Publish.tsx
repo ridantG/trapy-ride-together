@@ -13,6 +13,7 @@ import {
   ArrowLeft,
   Check,
   Car,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,13 +24,16 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { indianCities } from '@/lib/mockData';
 import { format } from 'date-fns';
-import { useApp } from '@/contexts/AppContext';
+import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { MAX_PRICE_PER_KM } from '@/lib/constants';
 
 export default function Publish() {
   const navigate = useNavigate();
-  const { user, setAuthModalOpen } = useApp();
+  const { user, profile } = useAuth();
   const [step, setStep] = useState(1);
+  const [isPublishing, setIsPublishing] = useState(false);
   const totalSteps = 5;
 
   // Form state
@@ -40,9 +44,14 @@ export default function Publish() {
   const [maxTwoInBack, setMaxTwoInBack] = useState(true);
   const [seats, setSeats] = useState(3);
   const [price, setPrice] = useState(400);
+  const [distanceKm, setDistanceKm] = useState<number | undefined>();
+  const [carModel, setCarModel] = useState('');
+  const [carNumber, setCarNumber] = useState('');
   const [smokingAllowed, setSmokingAllowed] = useState(false);
   const [petFriendly, setPetFriendly] = useState(false);
+  const [musicAllowed, setMusicAllowed] = useState(true);
   const [chatty, setChatty] = useState<'quiet' | 'moderate' | 'chatty'>('moderate');
+  const [womenOnly, setWomenOnly] = useState(false);
 
   const [fromOpen, setFromOpen] = useState(false);
   const [toOpen, setToOpen] = useState(false);
@@ -53,6 +62,10 @@ export default function Publish() {
   const filteredToCities = indianCities.filter((city) =>
     city.toLowerCase().includes(to.toLowerCase())
   );
+
+  // Calculate max allowed price based on distance
+  const maxAllowedPrice = distanceKm ? distanceKm * MAX_PRICE_PER_KM : 750;
+  const suggestedPrice = distanceKm ? Math.round(distanceKm * 4) : 400;
 
   const handleNext = () => {
     if (step < totalSteps) {
@@ -68,37 +81,103 @@ export default function Publish() {
     }
   };
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     if (!user) {
-      setAuthModalOpen(true);
+      navigate('/auth');
       return;
     }
 
-    toast({
-      title: 'Ride Published!',
-      description: 'Your ride has been published successfully. Passengers can now book seats.',
-    });
-    navigate('/');
+    if (!date || !time) {
+      toast({
+        title: 'Missing Information',
+        description: 'Please select a date and time for your ride.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate price cap
+    if (price > maxAllowedPrice) {
+      toast({
+        title: 'Price Too High',
+        description: `Maximum allowed price is ₹${maxAllowedPrice} (₹${MAX_PRICE_PER_KM}/km cap).`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Women-only rides can only be created by women
+    if (womenOnly && profile?.gender !== 'female') {
+      toast({
+        title: 'Not Allowed',
+        description: 'Only women can create women-only rides.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsPublishing(true);
+
+    try {
+      // Combine date and time into departure_time
+      const [hours, minutes] = time.split(':').map(Number);
+      const departureTime = new Date(date);
+      departureTime.setHours(hours, minutes, 0, 0);
+
+      const { error } = await supabase.from('rides').insert({
+        driver_id: user.id,
+        origin: from,
+        destination: to,
+        departure_time: departureTime.toISOString(),
+        seats_available: seats,
+        price_per_seat: price,
+        distance_km: distanceKm || null,
+        car_model: carModel || null,
+        car_number: carNumber || null,
+        is_women_only: womenOnly,
+        is_pet_friendly: petFriendly,
+        is_smoking_allowed: smokingAllowed,
+        is_music_allowed: musicAllowed,
+        is_chatty: chatty !== 'quiet',
+        max_two_back_seat: maxTwoInBack,
+        status: 'active',
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Ride Published!',
+        description: 'Your ride has been published successfully. Passengers can now book seats.',
+      });
+      navigate('/dashboard');
+    } catch (error: any) {
+      console.error('Error publishing ride:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to publish ride. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsPublishing(false);
+    }
   };
 
   const isStepValid = () => {
     switch (step) {
       case 1:
-        return from && to;
+        return from && to && from !== to;
       case 2:
         return date && time;
       case 3:
-        return true;
+        return seats > 0;
       case 4:
-        return price > 0;
+        return price > 0 && price <= maxAllowedPrice;
       case 5:
         return true;
       default:
         return false;
     }
   };
-
-  const suggestedPrice = 400;
 
   return (
     <div className="min-h-screen bg-muted/30 pt-16">
@@ -319,23 +398,73 @@ export default function Publish() {
                   <p className="text-muted-foreground">Price per seat for this trip</p>
                 </div>
 
+                {/* Distance input for dynamic pricing */}
+                <div>
+                  <Label className="mb-2 block">Approximate Distance (km)</Label>
+                  <Input
+                    type="number"
+                    placeholder="e.g., 150"
+                    value={distanceKm || ''}
+                    onChange={(e) => {
+                      const km = Number(e.target.value);
+                      setDistanceKm(km || undefined);
+                      if (km) {
+                        setPrice(Math.min(Math.round(km * 4), km * MAX_PRICE_PER_KM));
+                      }
+                    }}
+                    className="h-12"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Used to calculate suggested price (max ₹{MAX_PRICE_PER_KM}/km cap)
+                  </p>
+                </div>
+
                 <div className="bg-muted rounded-xl p-6 text-center">
                   <div className="relative inline-block">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-3xl font-bold text-muted-foreground">₹</span>
                     <Input
                       type="number"
                       value={price}
-                      onChange={(e) => setPrice(Number(e.target.value))}
+                      onChange={(e) => setPrice(Math.min(Number(e.target.value), maxAllowedPrice))}
+                      max={maxAllowedPrice}
                       className="text-center text-4xl font-bold h-20 w-48 pl-10"
                     />
                   </div>
                   <p className="text-muted-foreground mt-2">per seat</p>
+                  {distanceKm && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Max allowed: ₹{maxAllowedPrice}
+                    </p>
+                  )}
                 </div>
 
                 <div className="bg-emerald-light border border-emerald/20 rounded-xl p-4">
                   <p className="text-sm text-emerald font-medium">
-                    💡 Suggested price: ₹{suggestedPrice} based on similar rides
+                    💡 Suggested price: ₹{suggestedPrice} based on distance
                   </p>
+                </div>
+
+                {/* Car details */}
+                <div className="space-y-4 pt-4 border-t border-border">
+                  <h3 className="font-medium">Vehicle Details (Optional)</h3>
+                  <div>
+                    <Label className="mb-2 block">Car Model</Label>
+                    <Input
+                      placeholder="e.g., Maruti Swift"
+                      value={carModel}
+                      onChange={(e) => setCarModel(e.target.value)}
+                      className="h-12"
+                    />
+                  </div>
+                  <div>
+                    <Label className="mb-2 block">Car Number</Label>
+                    <Input
+                      placeholder="e.g., MH 12 AB 1234"
+                      value={carNumber}
+                      onChange={(e) => setCarNumber(e.target.value.toUpperCase())}
+                      className="h-12"
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -352,6 +481,16 @@ export default function Publish() {
                 </div>
 
                 <div className="space-y-4">
+                  {profile?.gender === 'female' && (
+                    <div className="flex items-center justify-between p-4 bg-pink-50 dark:bg-pink-950/20 rounded-xl border border-pink-200 dark:border-pink-800">
+                      <div>
+                        <p className="font-medium text-pink-700 dark:text-pink-300">Women-Only Ride</p>
+                        <p className="text-sm text-pink-600 dark:text-pink-400">Only visible to women passengers</p>
+                      </div>
+                      <Switch checked={womenOnly} onCheckedChange={setWomenOnly} />
+                    </div>
+                  )}
+
                   <div className="flex items-center justify-between p-4 bg-muted rounded-xl">
                     <div className="flex items-center gap-3">
                       <Cigarette className="w-5 h-5 text-muted-foreground" />
@@ -366,6 +505,14 @@ export default function Publish() {
                       <span>Pets allowed?</span>
                     </div>
                     <Switch checked={petFriendly} onCheckedChange={setPetFriendly} />
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 bg-muted rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <MessageCircle className="w-5 h-5 text-muted-foreground" />
+                      <span>Music allowed?</span>
+                    </div>
+                    <Switch checked={musicAllowed} onCheckedChange={setMusicAllowed} />
                   </div>
 
                   <div className="p-4 bg-muted rounded-xl">
@@ -392,17 +539,22 @@ export default function Publish() {
             {/* Navigation Buttons */}
             <div className="flex gap-3 mt-8">
               {step > 1 && (
-                <Button variant="outline" onClick={handleBack} className="flex-1">
+                <Button variant="outline" onClick={handleBack} disabled={isPublishing} className="flex-1">
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back
                 </Button>
               )}
               <Button
                 onClick={handleNext}
-                disabled={!isStepValid()}
+                disabled={!isStepValid() || isPublishing}
                 className="flex-1"
               >
-                {step === totalSteps ? (
+                {isPublishing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Publishing...
+                  </>
+                ) : step === totalSteps ? (
                   <>
                     <Check className="w-4 h-4 mr-2" />
                     Publish Ride
