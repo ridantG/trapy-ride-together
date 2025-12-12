@@ -1,16 +1,23 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, Shield, Car, Search, User, Plus } from 'lucide-react';
+import { Menu, X, Shield, Car, Search, User, Plus, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useApp } from '@/contexts/AppContext';
+import { useAuth } from '@/hooks/useAuth';
 import SafetyMenu from './SafetyMenu';
 
 export default function Navbar() {
   const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { user, setAuthModalOpen, isSafetyMenuOpen, setSafetyMenuOpen } = useApp();
+  const { isSafetyMenuOpen, setSafetyMenuOpen } = useApp();
+  const { user } = useAuth();
   const location = useLocation();
 
   const isActive = (path: string) => location.pathname === path;
+
+  // Hide navbar on auth pages
+  if (location.pathname === '/auth' || location.pathname === '/onboarding') {
+    return null;
+  }
 
   const navLinks = [
     { path: '/search', label: 'Find a Ride', icon: Search },
@@ -60,19 +67,17 @@ export default function Navbar() {
 
               {/* Auth/Profile */}
               {user ? (
-                <Link to="/profile">
+                <Link to="/dashboard">
                   <Button variant="ghost" size="icon">
-                    <User className="w-5 h-5" />
+                    <LayoutDashboard className="w-5 h-5" />
                   </Button>
                 </Link>
               ) : (
-                <Button
-                  variant="default"
-                  onClick={() => setAuthModalOpen(true)}
-                  className="hidden md:flex"
-                >
-                  Login
-                </Button>
+                <Link to="/auth">
+                  <Button variant="default" className="hidden md:flex">
+                    Login
+                  </Button>
+                </Link>
               )}
 
               {/* Mobile Menu Toggle */}
@@ -106,17 +111,19 @@ export default function Navbar() {
                     </Button>
                   </Link>
                 ))}
-                {!user && (
-                  <Button
-                    variant="default"
-                    onClick={() => {
-                      setAuthModalOpen(true);
-                      setMobileMenuOpen(false);
-                    }}
-                    className="w-full"
-                  >
-                    Login
-                  </Button>
+                {user ? (
+                  <Link to="/dashboard" onClick={() => setMobileMenuOpen(false)}>
+                    <Button variant="ghost" className="w-full justify-start gap-2">
+                      <LayoutDashboard className="w-4 h-4" />
+                      Dashboard
+                    </Button>
+                  </Link>
+                ) : (
+                  <Link to="/auth" onClick={() => setMobileMenuOpen(false)}>
+                    <Button variant="default" className="w-full">
+                      Login
+                    </Button>
+                  </Link>
                 )}
               </div>
             </div>
