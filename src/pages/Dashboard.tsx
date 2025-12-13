@@ -1,21 +1,82 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Car, Wallet, Settings, Clock, MapPin, Star, 
   Calendar, ChevronRight, Shield, AlertTriangle,
-  Crown, Phone, CreditCard
+  Crown, Phone, CreditCard, Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
-import { mockRides } from '@/lib/mockData';
+import { supabase } from '@/integrations/supabase/client';
+import { format } from 'date-fns';
+
+interface BookingWithRide {
+  id: string;
+  seats_booked: number;
+  total_price: number;
+  status: string | null;
+  created_at: string | null;
+  rides: {
+    id: string;
+    origin: string;
+    destination: string;
+    departure_time: string;
+    price_per_seat: number;
+  } | null;
+}
 
 export default function Dashboard() {
   const { profile, user, signOut } = useAuth();
   const [showSOS, setShowSOS] = useState(false);
+  const [bookings, setBookings] = useState<BookingWithRide[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const upcomingRides = mockRides.slice(0, 2);
-  const pastRides = mockRides.slice(2);
+  useEffect(() => {
+    if (user) {
+      fetchBookings();
+    }
+  }, [user]);
+
+  const fetchBookings = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select(`
+          id,
+          seats_booked,
+          total_price,
+          status,
+          created_at,
+          rides (
+            id,
+            origin,
+            destination,
+            departure_time,
+            price_per_seat
+          )
+        `)
+        .eq('passenger_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setBookings(data as BookingWithRide[] || []);
+    } catch (error) {
+      console.error('Error fetching bookings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const now = new Date();
+  const upcomingBookings = bookings.filter(b => 
+    b.rides && new Date(b.rides.departure_time) >= now && b.status !== 'cancelled'
+  );
+  const pastBookings = bookings.filter(b => 
+    b.rides && (new Date(b.rides.departure_time) < now || b.status === 'cancelled')
+  );
 
   return (
     <div className="min-h-screen bg-muted/30 pt-24 pb-24 md:pb-12">
@@ -91,15 +152,24 @@ export default function Dashboard() {
           </TabsList>
 
           <TabsContent value="upcoming" className="mt-4 space-y-4">
-            {upcomingRides.length > 0 ? (
-              upcomingRides.map((ride) => (
-                <Link key={ride.id} to={`/ride/${ride.id}`}>
+            {loading ? (
+              <div className="text-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
+                <p className="text-muted-foreground">Loading your rides...</p>
+              </div>
+            ) : upcomingBookings.length > 0 ? (
+              upcomingBookings.map((booking) => (
+                <Link key={booking.id} to={`/ride/${booking.rides?.id}`}>
                   <div className="bg-card border border-border rounded-xl p-4 hover:shadow-soft transition-shadow">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">{ride.date}</span>
-                        <span className="text-sm text-muted-foreground">{ride.departureTime}</span>
+                        <span className="text-sm font-medium">
+                          {booking.rides ? format(new Date(booking.rides.departure_time), 'EEE, MMM d') : ''}
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          {booking.rides ? format(new Date(booking.rides.departure_time), 'h:mm a') : ''}
+                        </span>
                       </div>
                       <ChevronRight className="w-5 h-5 text-muted-foreground" />
                     </div>
@@ -110,11 +180,12 @@ export default function Dashboard() {
                         <div className="w-2 h-2 rounded-full border-2 border-primary" />
                       </div>
                       <div className="flex-1">
-                        <p className="font-medium text-sm">{ride.from}</p>
-                        <p className="text-sm text-muted-foreground mt-4">{ride.to}</p>
+                        <p className="font-medium text-sm">{booking.rides?.origin}</p>
+                        <p className="text-sm text-muted-foreground mt-4">{booking.rides?.destination}</p>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-primary">₹{ride.price}</p>
+                        <p className="font-bold text-primary">₹{booking.total_price}</p>
+                        <p className="text-xs text-muted-foreground">{booking.seats_booked} seat(s)</p>
                       </div>
                     </div>
                   </div>
@@ -132,29 +203,44 @@ export default function Dashboard() {
           </TabsContent>
 
           <TabsContent value="history" className="mt-4 space-y-4">
-            {pastRides.map((ride) => (
-              <div key={ride.id} className="bg-card border border-border rounded-xl p-4 opacity-70">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">{ride.date}</span>
+            {pastBookings.length > 0 ? (
+              pastBookings.map((booking) => (
+                <div key={booking.id} className="bg-card border border-border rounded-xl p-4 opacity-70">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">
+                        {booking.rides ? format(new Date(booking.rides.departure_time), 'EEE, MMM d') : ''}
+                      </span>
+                    </div>
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      booking.status === 'cancelled' 
+                        ? 'bg-destructive/10 text-destructive' 
+                        : 'bg-muted text-muted-foreground'
+                    }`}>
+                      {booking.status === 'cancelled' ? 'Cancelled' : 'Completed'}
+                    </span>
                   </div>
-                  <span className="text-xs bg-muted px-2 py-1 rounded-full">Completed</span>
+                  <div className="flex items-center gap-3">
+                    <div className="flex flex-col items-center">
+                      <div className="w-2 h-2 rounded-full bg-muted-foreground" />
+                      <div className="w-0.5 h-8 bg-border" />
+                      <div className="w-2 h-2 rounded-full border-2 border-muted-foreground" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">{booking.rides?.origin}</p>
+                      <p className="text-sm text-muted-foreground mt-4">{booking.rides?.destination}</p>
+                    </div>
+                    <p className="font-medium">₹{booking.total_price}</p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex flex-col items-center">
-                    <div className="w-2 h-2 rounded-full bg-muted-foreground" />
-                    <div className="w-0.5 h-8 bg-border" />
-                    <div className="w-2 h-2 rounded-full border-2 border-muted-foreground" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium text-sm">{ride.fromCity}</p>
-                    <p className="text-sm text-muted-foreground mt-4">{ride.toCity}</p>
-                  </div>
-                  <p className="font-medium">₹{ride.price}</p>
-                </div>
+              ))
+            ) : (
+              <div className="text-center py-12">
+                <Car className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">No past rides</p>
               </div>
-            ))}
+            )}
           </TabsContent>
         </Tabs>
 
