@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   User,
   Shield,
@@ -13,17 +14,51 @@ import {
   Phone,
   CreditCard,
   FileText,
+  ArrowLeft,
+  Save,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useApp } from '@/contexts/AppContext';
-import { mockRides } from '@/lib/mockData';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
+import { Link } from 'react-router-dom';
 
 export default function Profile() {
-  const { user, setUser, setAuthModalOpen } = useApp();
-  const [activeTab, setActiveTab] = useState('rides');
+  const { user, profile, signOut, updateProfile, isLoading } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState('settings');
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  // Edit form state
+  const [editForm, setEditForm] = useState({
+    full_name: profile?.full_name || '',
+    phone: profile?.phone || '',
+  });
+
+  // Update form when profile loads
+  useState(() => {
+    if (profile) {
+      setEditForm({
+        full_name: profile.full_name || '',
+        phone: profile.phone || '',
+      });
+    }
+  });
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-muted/30 pt-20 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   if (!user) {
     return (
@@ -32,56 +67,86 @@ export default function Profile() {
           <User className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
           <h2 className="text-2xl font-bold mb-2">Login to view your profile</h2>
           <p className="text-muted-foreground mb-6">Access your rides, wallet, and verification status</p>
-          <Button onClick={() => setAuthModalOpen(true)}>Login</Button>
+          <Button onClick={() => navigate('/auth')}>Login</Button>
         </div>
       </div>
     );
   }
 
-  const upcomingRides = mockRides.slice(0, 2);
+  const handleSaveProfile = async () => {
+    setIsSaving(true);
+    const { error } = await updateProfile({
+      full_name: editForm.full_name,
+      phone: editForm.phone,
+    });
+    setIsSaving(false);
+    
+    if (!error) {
+      setIsEditing(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/');
+  };
 
   const verificationItems = [
     {
       icon: Phone,
       label: 'Phone Number',
-      verified: user.isPhoneVerified,
-      action: 'Verified',
+      verified: profile?.is_phone_verified || false,
+      action: 'Verify',
     },
     {
       icon: FileText,
       label: 'Aadhaar Card',
-      verified: user.isAadhaarVerified,
+      verified: profile?.is_aadhaar_verified || false,
       action: 'Upload',
     },
     {
       icon: CreditCard,
       label: 'Driving License',
-      verified: false,
+      verified: profile?.is_dl_verified || false,
       action: 'Upload',
     },
   ];
 
   return (
     <div className="min-h-screen bg-muted/30 pt-16">
-      <div className="container px-4 py-8">
+      <div className="container px-4 py-8 max-w-2xl">
+        {/* Back Button */}
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="mb-4"
+          onClick={() => navigate('/dashboard')}
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to Dashboard
+        </Button>
+
         {/* Profile Header */}
         <Card className="mb-6">
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
               <div className="relative">
-                <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
-                  <User className="w-10 h-10 text-primary" />
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-indigo-dark flex items-center justify-center text-3xl font-bold text-primary-foreground">
+                  {profile?.full_name?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase() || 'U'}
                 </div>
-                {user.isVerified && (
+                {profile?.is_aadhaar_verified && (
                   <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-emerald rounded-full flex items-center justify-center">
-                    <Shield className="w-4 h-4 text-secondary-foreground" />
+                    <Shield className="w-4 h-4 text-white" />
                   </div>
                 )}
               </div>
               <div className="flex-1">
-                <h1 className="text-2xl font-bold">{user.name}</h1>
-                <p className="text-muted-foreground">+91 {user.phone}</p>
-                {user.isVerified ? (
+                <h1 className="text-2xl font-bold">{profile?.full_name || 'User'}</h1>
+                <p className="text-muted-foreground">{user.email}</p>
+                {profile?.phone && (
+                  <p className="text-muted-foreground text-sm">+91 {profile.phone}</p>
+                )}
+                {profile?.is_aadhaar_verified ? (
                   <Badge className="mt-2 bg-emerald-light text-emerald border-0">
                     <CheckCircle className="w-3 h-3 mr-1" />
                     Verified User
@@ -103,7 +168,7 @@ export default function Profile() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-primary-foreground/80 text-sm">Wallet Balance</p>
-                <p className="text-3xl font-bold">₹{user.walletBalance.toLocaleString()}</p>
+                <p className="text-3xl font-bold">₹{profile?.wallet_balance?.toLocaleString() || 0}</p>
               </div>
               <div className="w-14 h-14 rounded-full bg-primary-foreground/20 flex items-center justify-center">
                 <Wallet className="w-7 h-7" />
@@ -122,59 +187,110 @@ export default function Profile() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="w-full grid grid-cols-3 mb-6">
-            <TabsTrigger value="rides">My Rides</TabsTrigger>
+          <TabsList className="w-full grid grid-cols-2 mb-6">
+            <TabsTrigger value="settings">Account Settings</TabsTrigger>
             <TabsTrigger value="verification">Verification</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
-          {/* My Rides */}
-          <TabsContent value="rides" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Car className="w-5 h-5" />
-                  Upcoming Rides
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {upcomingRides.length > 0 ? (
-                  upcomingRides.map((ride) => (
-                    <div
-                      key={ride.id}
-                      className="flex items-center justify-between p-4 bg-muted rounded-xl"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex flex-col items-center">
-                          <div className="w-2 h-2 rounded-full bg-primary" />
-                          <div className="w-0.5 h-4 bg-border" />
-                          <div className="w-2 h-2 rounded-full border-2 border-primary" />
-                        </div>
-                        <div>
-                          <p className="font-medium">{ride.fromCity} → {ride.toCity}</p>
-                          <p className="text-sm text-muted-foreground">{ride.date} · {ride.departureTime}</p>
-                        </div>
-                      </div>
-                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
+          {/* Settings */}
+          <TabsContent value="settings" className="space-y-4">
+            {isEditing ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <User className="w-5 h-5" />
+                    Edit Profile
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="full_name">Full Name</Label>
+                    <Input
+                      id="full_name"
+                      value={editForm.full_name}
+                      onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
+                      placeholder="Enter your full name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone Number</Label>
+                    <Input
+                      id="phone"
+                      value={editForm.phone}
+                      onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                      placeholder="Enter your phone number"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      value={user.email || ''}
+                      disabled
+                      className="bg-muted"
+                    />
+                    <p className="text-xs text-muted-foreground">Email cannot be changed</p>
+                  </div>
+                  <div className="flex gap-3 pt-4">
+                    <Button onClick={handleSaveProfile} disabled={isSaving}>
+                      {isSaving ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Save className="w-4 h-4 mr-2" />
+                      )}
+                      Save Changes
+                    </Button>
+                    <Button variant="outline" onClick={() => setIsEditing(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="p-0">
+                  <button 
+                    className="w-full flex items-center justify-between p-4 hover:bg-muted transition-colors"
+                    onClick={() => {
+                      setEditForm({
+                        full_name: profile?.full_name || '',
+                        phone: profile?.phone || '',
+                      });
+                      setIsEditing(true);
+                    }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <User className="w-5 h-5 text-muted-foreground" />
+                      <span>Edit Profile</span>
                     </div>
-                  ))
-                ) : (
-                  <p className="text-center text-muted-foreground py-8">No upcoming rides</p>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="w-5 h-5" />
-                  Past Rides
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-center text-muted-foreground py-8">No past rides</p>
-              </CardContent>
-            </Card>
+                    <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                  </button>
+                  <Link to="/verification" className="w-full flex items-center justify-between p-4 hover:bg-muted transition-colors border-t">
+                    <div className="flex items-center gap-3">
+                      <Shield className="w-5 h-5 text-muted-foreground" />
+                      <span>Verification Center</span>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                  </Link>
+                  <Link to="/trapy-pass" className="w-full flex items-center justify-between p-4 hover:bg-muted transition-colors border-t">
+                    <div className="flex items-center gap-3">
+                      <CreditCard className="w-5 h-5 text-muted-foreground" />
+                      <span>Trapy Pass Subscription</span>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                  </Link>
+                  <button
+                    className="w-full flex items-center justify-between p-4 hover:bg-muted transition-colors border-t text-destructive"
+                    onClick={handleSignOut}
+                  >
+                    <div className="flex items-center gap-3">
+                      <LogOut className="w-5 h-5" />
+                      <span>Logout</span>
+                    </div>
+                  </button>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Verification */}
@@ -197,7 +313,7 @@ export default function Profile() {
                   >
                     <div className="flex items-center gap-3">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        item.verified ? 'bg-emerald-light' : 'bg-muted'
+                        item.verified ? 'bg-emerald-light' : 'bg-background'
                       }`}>
                         <item.icon className={`w-5 h-5 ${item.verified ? 'text-emerald' : 'text-muted-foreground'}`} />
                       </div>
@@ -211,51 +327,15 @@ export default function Profile() {
                     {item.verified ? (
                       <CheckCircle className="w-5 h-5 text-emerald" />
                     ) : (
-                      <Button size="sm" variant="outline">
-                        <Upload className="w-4 h-4 mr-1" />
-                        {item.action}
-                      </Button>
+                      <Link to="/verification">
+                        <Button size="sm" variant="outline">
+                          <Upload className="w-4 h-4 mr-1" />
+                          {item.action}
+                        </Button>
+                      </Link>
                     )}
                   </div>
                 ))}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Settings */}
-          <TabsContent value="settings" className="space-y-4">
-            <Card>
-              <CardContent className="p-0">
-                <button className="w-full flex items-center justify-between p-4 hover:bg-muted transition-colors">
-                  <div className="flex items-center gap-3">
-                    <User className="w-5 h-5 text-muted-foreground" />
-                    <span>Edit Profile</span>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                </button>
-                <button className="w-full flex items-center justify-between p-4 hover:bg-muted transition-colors border-t">
-                  <div className="flex items-center gap-3">
-                    <Car className="w-5 h-5 text-muted-foreground" />
-                    <span>My Vehicles</span>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                </button>
-                <button className="w-full flex items-center justify-between p-4 hover:bg-muted transition-colors border-t">
-                  <div className="flex items-center gap-3">
-                    <CreditCard className="w-5 h-5 text-muted-foreground" />
-                    <span>Payment Methods</span>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                </button>
-                <button
-                  className="w-full flex items-center justify-between p-4 hover:bg-muted transition-colors border-t text-destructive"
-                  onClick={() => setUser(null)}
-                >
-                  <div className="flex items-center gap-3">
-                    <LogOut className="w-5 h-5" />
-                    <span>Logout</span>
-                  </div>
-                </button>
               </CardContent>
             </Card>
           </TabsContent>
