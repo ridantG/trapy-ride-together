@@ -36,3 +36,13 @@ export const suggestPrice = (distanceKm: number): number => {
 export const validatePrice = (price: number, distanceKm: number): boolean => {
   return price <= calculateMaxPrice(distanceKm);
 };
+
+// Calculate total price with platform fee for multiple seats
+export const calculateTotalPrice = (pricePerSeat: number, seats: number): { totalPrice: number; platformFee: number } => {
+  const subtotal = pricePerSeat * seats;
+  const platformFee = Math.round(subtotal * (PLATFORM_FEE_PERCENTAGE / 100));
+  return {
+    totalPrice: subtotal + platformFee,
+    platformFee,
+  };
+};
