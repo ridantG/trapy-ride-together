@@ -1,12 +1,18 @@
-import { Shield, CreditCard, Users, Car, MapPin, Clock, Wallet, ArrowRight, CheckCircle, Search, Plus, Star, Heart, Zap } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Shield, CreditCard, Users, Car, MapPin, Clock, Wallet, ArrowRight, CheckCircle, Search, Plus, Star, Heart, Zap, LogOut } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import SearchWidget from '@/components/SearchWidget';
 import { popularRoutes } from '@/lib/mockData';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function Index() {
-  const { user, profile } = useAuth();
+  const { user, profile, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/');
+  };
 
   const trustBadges = [
     { icon: Shield, label: 'Verified IDs', description: 'Aadhaar & DL Verified' },
@@ -40,9 +46,13 @@ export default function Index() {
               <h1 className="text-3xl md:text-4xl font-bold mb-2">
                 Welcome back, <span className="text-gradient">{profile?.full_name || 'Traveler'}!</span>
               </h1>
-              <p className="text-muted-foreground text-lg mb-8">
+              <p className="text-muted-foreground text-lg mb-4">
                 What would you like to do today?
               </p>
+              <Button variant="ghost" size="sm" onClick={handleLogout} className="mb-6 text-muted-foreground hover:text-destructive">
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
+              </Button>
 
               {/* Main Action Cards */}
               <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
