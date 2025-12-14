@@ -1,10 +1,13 @@
-import { Shield, CreditCard, Users, Car, MapPin, Clock, Wallet, ArrowRight, CheckCircle } from 'lucide-react';
+import { Shield, CreditCard, Users, Car, MapPin, Clock, Wallet, ArrowRight, CheckCircle, Search, Plus, Star, Heart, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import SearchWidget from '@/components/SearchWidget';
 import { popularRoutes } from '@/lib/mockData';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function Index() {
+  const { user, profile } = useAuth();
+
   const trustBadges = [
     { icon: Shield, label: 'Verified IDs', description: 'Aadhaar & DL Verified' },
     { icon: CreditCard, label: 'Secure Payments', description: 'UPI & Cards Accepted' },
@@ -17,6 +20,134 @@ export default function Index() {
     { icon: Wallet, title: 'Save', description: 'Pay less and travel comfortably' },
   ];
 
+  const aboutFeatures = [
+    { icon: Shield, title: 'Safety First', description: 'All drivers are verified with Aadhaar and DL checks. Real-time ride tracking and emergency SOS.' },
+    { icon: Wallet, title: 'Save Money', description: 'Split travel costs and save up to 75% compared to trains, buses, or cabs.' },
+    { icon: Users, title: 'Community', description: 'Join 10 lakh+ travelers building a sustainable future through shared mobility.' },
+    { icon: Heart, title: 'Women Safety', description: 'Dedicated women-only rides with verified female drivers for safe travel.' },
+    { icon: Star, title: 'Trusted Reviews', description: 'Transparent ratings and reviews help you choose the perfect ride.' },
+    { icon: Zap, title: 'Instant Booking', description: 'Book your ride in seconds with instant confirmation and easy payment.' },
+  ];
+
+  // Logged-in user view
+  if (user) {
+    return (
+      <div className="min-h-screen pt-20">
+        {/* Welcome Section */}
+        <section className="py-12 bg-gradient-to-br from-primary/5 to-emerald/5">
+          <div className="container px-4">
+            <div className="max-w-4xl mx-auto text-center">
+              <h1 className="text-3xl md:text-4xl font-bold mb-2">
+                Welcome back, <span className="text-gradient">{profile?.full_name || 'Traveler'}!</span>
+              </h1>
+              <p className="text-muted-foreground text-lg mb-8">
+                What would you like to do today?
+              </p>
+
+              {/* Main Action Cards */}
+              <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+                <Link to="/search" className="group">
+                  <div className="bg-card border border-border rounded-2xl p-8 hover:shadow-soft hover:border-primary/30 transition-all h-full">
+                    <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                      <Search className="w-8 h-8 text-primary" />
+                    </div>
+                    <h2 className="text-xl font-bold mb-2">Find a Ride</h2>
+                    <p className="text-muted-foreground mb-4">
+                      Search for available rides and book your seat instantly
+                    </p>
+                    <Button className="w-full">
+                      Search Rides
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </div>
+                </Link>
+
+                <Link to="/publish" className="group">
+                  <div className="bg-card border border-border rounded-2xl p-8 hover:shadow-soft hover:border-emerald/30 transition-all h-full">
+                    <div className="w-16 h-16 rounded-2xl bg-emerald/10 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                      <Plus className="w-8 h-8 text-emerald" />
+                    </div>
+                    <h2 className="text-xl font-bold mb-2">Publish a Ride</h2>
+                    <p className="text-muted-foreground mb-4">
+                      Offer your ride and earn money by sharing your journey
+                    </p>
+                    <Button variant="outline" className="w-full border-emerald text-emerald hover:bg-emerald hover:text-white">
+                      Publish Ride
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </div>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Quick Stats */}
+        <section className="py-12 bg-background">
+          <div className="container px-4">
+            <div className="max-w-4xl mx-auto">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-card border border-border rounded-xl p-4 text-center">
+                  <p className="text-2xl font-bold text-primary">{profile?.total_rides || 0}</p>
+                  <p className="text-sm text-muted-foreground">Total Rides</p>
+                </div>
+                <div className="bg-card border border-border rounded-xl p-4 text-center">
+                  <p className="text-2xl font-bold text-emerald">₹{profile?.wallet_balance || 0}</p>
+                  <p className="text-sm text-muted-foreground">Wallet Balance</p>
+                </div>
+                <div className="bg-card border border-border rounded-xl p-4 text-center">
+                  <p className="text-2xl font-bold text-warning">{profile?.fuel_points || 0}</p>
+                  <p className="text-sm text-muted-foreground">Fuel Points</p>
+                </div>
+                <div className="bg-card border border-border rounded-xl p-4 text-center">
+                  <p className="text-2xl font-bold text-primary">⭐ {profile?.rating?.toFixed(1) || '5.0'}</p>
+                  <p className="text-sm text-muted-foreground">Rating</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Popular Routes */}
+        <section className="py-12 bg-muted/50">
+          <div className="container px-4">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-bold mb-2">Popular Routes</h2>
+              <p className="text-muted-foreground">Quick access to trending destinations</p>
+            </div>
+
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto">
+              {popularRoutes.slice(0, 6).map((route, index) => (
+                <Link key={index} to="/search">
+                  <div className="bg-card border border-border rounded-xl p-4 hover:shadow-soft hover:border-primary/20 transition-all cursor-pointer group">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="flex flex-col items-center">
+                          <div className="w-2 h-2 rounded-full bg-primary" />
+                          <div className="w-0.5 h-6 bg-border" />
+                          <div className="w-2 h-2 rounded-full border-2 border-primary" />
+                        </div>
+                        <div>
+                          <p className="font-medium">{route.from}</p>
+                          <p className="text-muted-foreground text-sm">{route.to}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-primary">₹{route.price}</p>
+                        <p className="text-xs text-muted-foreground">per seat</p>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  // Guest user view (landing page)
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
@@ -39,6 +170,21 @@ export default function Index() {
             <p className="text-lg md:text-xl text-primary-foreground/80 mb-8 animate-slide-up delay-100">
               India's trusted carpooling platform. Share rides, split costs, and travel comfortably.
             </p>
+
+            {/* CTA Buttons for guests */}
+            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8 animate-slide-up delay-150">
+              <Link to="/auth">
+                <Button size="xl" className="bg-white text-primary hover:bg-white/90 w-full sm:w-auto">
+                  Get Started
+                  <ArrowRight className="w-5 h-5 ml-2" />
+                </Button>
+              </Link>
+              <Link to="/auth">
+                <Button size="xl" variant="outline" className="border-white/30 text-white hover:bg-white/10 w-full sm:w-auto">
+                  Login
+                </Button>
+              </Link>
+            </div>
           </div>
 
           {/* Search Widget */}
@@ -78,8 +224,32 @@ export default function Index() {
         </div>
       </section>
 
-      {/* How It Works */}
+      {/* About Trapy Section */}
       <section className="py-20 bg-background">
+        <div className="container px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">About <span className="text-gradient">Trapy</span></h2>
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+              Trapy is India's most trusted carpooling platform, connecting drivers with empty seats to passengers heading the same way. We're building a community of 10 lakh+ travelers who believe in smart, safe, and sustainable travel.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            {aboutFeatures.map((feature, index) => (
+              <div key={index} className="bg-card border border-border rounded-2xl p-6 hover:shadow-soft transition-all">
+                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
+                  <feature.icon className="w-6 h-6 text-primary" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
+                <p className="text-muted-foreground text-sm">{feature.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* How It Works */}
+      <section className="py-20 bg-muted/50">
         <div className="container px-4">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">How Trapy Works</h2>
@@ -105,7 +275,7 @@ export default function Index() {
       </section>
 
       {/* Popular Routes */}
-      <section className="py-20 bg-muted/50">
+      <section className="py-20 bg-background">
         <div className="container px-4">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">Popular Routes</h2>
@@ -142,7 +312,7 @@ export default function Index() {
       </section>
 
       {/* Why Choose Trapy */}
-      <section className="py-20 bg-background">
+      <section className="py-20 bg-muted/50">
         <div className="container px-4">
           <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-12 items-center">
             <div>
@@ -164,11 +334,11 @@ export default function Index() {
                 ))}
               </div>
               <div className="flex gap-4 mt-8">
-                <Link to="/search">
-                  <Button size="lg">Find a Ride</Button>
+                <Link to="/auth">
+                  <Button size="lg">Get Started</Button>
                 </Link>
-                <Link to="/publish">
-                  <Button variant="outline" size="lg">Offer a Ride</Button>
+                <Link to="/auth">
+                  <Button variant="outline" size="lg">Login</Button>
                 </Link>
               </div>
             </div>
@@ -219,14 +389,14 @@ export default function Index() {
             Join 10 lakh+ travelers who trust Trapy. India's Most Trusted Ride Network.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link to="/search">
+            <Link to="/auth">
               <Button size="xl" className="bg-primary-foreground text-primary hover:bg-primary-foreground/90">
-                Find a Ride
+                Get Started Free
               </Button>
             </Link>
-            <Link to="/publish">
+            <Link to="/auth">
               <Button size="xl" variant="outline" className="border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10">
-                Publish a Ride
+                Login
               </Button>
             </Link>
           </div>
