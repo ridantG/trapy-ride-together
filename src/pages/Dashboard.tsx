@@ -3,13 +3,15 @@ import { Link } from 'react-router-dom';
 import { 
   Car, Wallet, Settings, Clock, MapPin, Star, 
   Calendar, ChevronRight, Shield, AlertTriangle,
-  Crown, Phone, CreditCard, Loader2
+  Crown, Phone, CreditCard, Loader2, MessageCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
+import Chat from '@/components/Chat';
+import RatingModal from '@/components/RatingModal';
 
 interface BookingWithRide {
   id: string;
@@ -23,7 +25,16 @@ interface BookingWithRide {
     destination: string;
     departure_time: string;
     price_per_seat: number;
+    driver_id: string;
+    profiles: {
+      full_name: string | null;
+    } | null;
   } | null;
+}
+
+interface Rating {
+  booking_id: string;
+  rater_id: string;
 }
 
 export default function Dashboard() {
@@ -31,10 +42,18 @@ export default function Dashboard() {
   const [showSOS, setShowSOS] = useState(false);
   const [bookings, setBookings] = useState<BookingWithRide[]>([]);
   const [loading, setLoading] = useState(true);
+  const [existingRatings, setExistingRatings] = useState<Rating[]>([]);
+  
+  // Chat state
+  const [activeChatBooking, setActiveChatBooking] = useState<BookingWithRide | null>(null);
+  
+  // Rating state
+  const [ratingBooking, setRatingBooking] = useState<BookingWithRide | null>(null);
 
   useEffect(() => {
     if (user) {
       fetchBookings();
+      fetchExistingRatings();
     }
   }, [user]);
 
@@ -55,7 +74,11 @@ export default function Dashboard() {
             origin,
             destination,
             departure_time,
-            price_per_seat
+            price_per_seat,
+            driver_id,
+            profiles!rides_driver_id_fkey (
+              full_name
+            )
           )
         `)
         .eq('passenger_id', user.id)
@@ -68,6 +91,27 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchExistingRatings = async () => {
+    if (!user) return;
+    
+    try {
+      const { data } = await supabase
+        .from('ratings')
+        .select('booking_id, rater_id')
+        .eq('rater_id', user.id);
+      
+      if (data) {
+        setExistingRatings(data);
+      }
+    } catch (error) {
+      console.error('Error fetching ratings:', error);
+    }
+  };
+
+  const hasRated = (bookingId: string) => {
+    return existingRatings.some(r => r.booking_id === bookingId);
   };
 
   const now = new Date();
@@ -159,8 +203,8 @@ export default function Dashboard() {
               </div>
             ) : upcomingBookings.length > 0 ? (
               upcomingBookings.map((booking) => (
-                <Link key={booking.id} to={`/ride/${booking.rides?.id}`}>
-                  <div className="bg-card border border-border rounded-xl p-4 hover:shadow-soft transition-shadow">
+                <div key={booking.id} className="bg-card border border-border rounded-xl p-4 hover:shadow-soft transition-shadow">
+                  <Link to={`/ride/${booking.rides?.id}`}>
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4 text-muted-foreground" />
@@ -188,8 +232,25 @@ export default function Dashboard() {
                         <p className="text-xs text-muted-foreground">{booking.seats_booked} seat(s)</p>
                       </div>
                     </div>
+                  </Link>
+                  {/* Chat Button */}
+                  <div className="mt-3 pt-3 border-t border-border flex justify-between items-center">
+                    <p className="text-xs text-muted-foreground">
+                      Driver: {booking.rides?.profiles?.full_name || 'Unknown'}
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setActiveChatBooking(booking);
+                      }}
+                    >
+                      <MessageCircle className="w-4 h-4 mr-2" />
+                      Chat
+                    </Button>
                   </div>
-                </Link>
+                </div>
               ))
             ) : (
               <div className="text-center py-12">
@@ -205,7 +266,7 @@ export default function Dashboard() {
           <TabsContent value="history" className="mt-4 space-y-4">
             {pastBookings.length > 0 ? (
               pastBookings.map((booking) => (
-                <div key={booking.id} className="bg-card border border-border rounded-xl p-4 opacity-70">
+                <div key={booking.id} className="bg-card border border-border rounded-xl p-4 opacity-80">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-muted-foreground" />
@@ -233,6 +294,28 @@ export default function Dashboard() {
                     </div>
                     <p className="font-medium">₹{booking.total_price}</p>
                   </div>
+                  {/* Rating Button */}
+                  {booking.status !== 'cancelled' && !hasRated(booking.id) && (
+                    <div className="mt-3 pt-3 border-t border-border">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => setRatingBooking(booking)}
+                      >
+                        <Star className="w-4 h-4 mr-2" />
+                        Rate Driver
+                      </Button>
+                    </div>
+                  )}
+                  {hasRated(booking.id) && (
+                    <div className="mt-3 pt-3 border-t border-border text-center">
+                      <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+                        <Star className="w-3 h-3 fill-warning text-warning" />
+                        You rated this ride
+                      </p>
+                    </div>
+                  )}
                 </div>
               ))
             ) : (
@@ -334,6 +417,28 @@ export default function Dashboard() {
             </Button>
           </div>
         </div>
+      )}
+
+      {/* Chat Modal */}
+      {activeChatBooking && activeChatBooking.rides && (
+        <Chat
+          bookingId={activeChatBooking.id}
+          otherUserId={activeChatBooking.rides.driver_id}
+          otherUserName={activeChatBooking.rides.profiles?.full_name || 'Driver'}
+          onClose={() => setActiveChatBooking(null)}
+        />
+      )}
+
+      {/* Rating Modal */}
+      {ratingBooking && ratingBooking.rides && (
+        <RatingModal
+          bookingId={ratingBooking.id}
+          ratedUserId={ratingBooking.rides.driver_id}
+          ratedUserName={ratingBooking.rides.profiles?.full_name || 'Driver'}
+          raterType="passenger"
+          onClose={() => setRatingBooking(null)}
+          onRated={fetchExistingRatings}
+        />
       )}
     </div>
   );
