@@ -20,6 +20,7 @@ export type Database = {
           id: string
           passenger_id: string
           payment_status: Database["public"]["Enums"]["payment_status"] | null
+          pickup_point_id: string | null
           platform_fee: number
           ride_id: string
           seats_booked: number
@@ -32,6 +33,7 @@ export type Database = {
           id?: string
           passenger_id: string
           payment_status?: Database["public"]["Enums"]["payment_status"] | null
+          pickup_point_id?: string | null
           platform_fee: number
           ride_id: string
           seats_booked?: number
@@ -44,6 +46,7 @@ export type Database = {
           id?: string
           passenger_id?: string
           payment_status?: Database["public"]["Enums"]["payment_status"] | null
+          pickup_point_id?: string | null
           platform_fee?: number
           ride_id?: string
           seats_booked?: number
@@ -60,7 +63,84 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "bookings_pickup_point_id_fkey"
+            columns: ["pickup_point_id"]
+            isOneToOne: false
+            referencedRelation: "pickup_points"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "bookings_ride_id_fkey"
+            columns: ["ride_id"]
+            isOneToOne: false
+            referencedRelation: "rides"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          booking_id: string
+          content: string
+          created_at: string
+          id: string
+          is_read: boolean | null
+          sender_id: string
+        }
+        Insert: {
+          booking_id: string
+          content: string
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          sender_id: string
+        }
+        Update: {
+          booking_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pickup_points: {
+        Row: {
+          address: string | null
+          created_at: string
+          id: string
+          name: string
+          ride_id: string
+          sequence_order: number
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          ride_id: string
+          sequence_order?: number
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          ride_id?: string
+          sequence_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pickup_points_ride_id_fkey"
             columns: ["ride_id"]
             isOneToOne: false
             referencedRelation: "rides"
@@ -139,6 +219,47 @@ export type Database = {
           wallet_balance?: number | null
         }
         Relationships: []
+      }
+      ratings: {
+        Row: {
+          booking_id: string
+          created_at: string
+          id: string
+          rated_id: string
+          rater_id: string
+          rater_type: string
+          rating: number
+          review: string | null
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          id?: string
+          rated_id: string
+          rater_id: string
+          rater_type: string
+          rating: number
+          review?: string | null
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          id?: string
+          rated_id?: string
+          rater_id?: string
+          rater_type?: string
+          rating?: number
+          review?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ratings_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       rides: {
         Row: {

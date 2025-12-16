@@ -28,13 +28,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { MAX_PRICE_PER_KM } from '@/lib/constants';
+import PickupPointsManager, { PickupPoint } from '@/components/PickupPointsManager';
 
 export default function Publish() {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const [step, setStep] = useState(1);
   const [isPublishing, setIsPublishing] = useState(false);
-  const totalSteps = 5;
+  const totalSteps = 6; // Added pickup points step
 
   // Form state
   const [from, setFrom] = useState('');
@@ -52,6 +53,7 @@ export default function Publish() {
   const [musicAllowed, setMusicAllowed] = useState(true);
   const [chatty, setChatty] = useState<'quiet' | 'moderate' | 'chatty'>('moderate');
   const [womenOnly, setWomenOnly] = useState(false);
+  const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
 
   const [fromOpen, setFromOpen] = useState(false);
   const [toOpen, setToOpen] = useState(false);
@@ -124,7 +126,7 @@ export default function Publish() {
       const departureTime = new Date(date);
       departureTime.setHours(hours, minutes, 0, 0);
 
-      const { error } = await supabase.from('rides').insert({
+      const { data: rideData, error } = await supabase.from('rides').insert({
         driver_id: user.id,
         origin: from,
         destination: to,
@@ -141,9 +143,27 @@ export default function Publish() {
         is_chatty: chatty !== 'quiet',
         max_two_back_seat: maxTwoInBack,
         status: 'active',
-      });
+      }).select().single();
 
       if (error) throw error;
+
+      // Insert pickup points if any
+      if (pickupPoints.length > 0 && rideData) {
+        const pickupPointsData = pickupPoints.map((point) => ({
+          ride_id: rideData.id,
+          name: point.name,
+          address: point.address || null,
+          sequence_order: point.sequence_order,
+        }));
+
+        const { error: pickupError } = await supabase
+          .from('pickup_points')
+          .insert(pickupPointsData);
+
+        if (pickupError) {
+          console.error('Error adding pickup points:', pickupError);
+        }
+      }
 
       toast({
         title: 'Ride Published!',
@@ -167,12 +187,14 @@ export default function Publish() {
       case 1:
         return from && to && from !== to;
       case 2:
-        return date && time;
+        return true; // Pickup points are optional
       case 3:
-        return seats > 0;
+        return date && time;
       case 4:
-        return price > 0 && price <= maxAllowedPrice;
+        return seats > 0;
       case 5:
+        return price > 0 && price <= maxAllowedPrice;
+      case 6:
         return true;
       default:
         return false;
@@ -293,8 +315,32 @@ export default function Publish() {
               </div>
             )}
 
-            {/* Step 2: Date & Time */}
+            {/* Step 2: Pickup Points */}
             {step === 2 && (
+              <div className="space-y-6 animate-fade-in">
+                <div className="text-center mb-6">
+                  <div className="w-16 h-16 rounded-2xl bg-indigo-light flex items-center justify-center mx-auto mb-4">
+                    <MapPin className="w-8 h-8 text-primary" />
+                  </div>
+                  <h2 className="text-2xl font-bold">Pickup Points</h2>
+                  <p className="text-muted-foreground">Add stops where passengers can join</p>
+                </div>
+
+                <PickupPointsManager
+                  pickupPoints={pickupPoints}
+                  onChange={setPickupPoints}
+                />
+
+                <div className="bg-muted/50 rounded-xl p-4">
+                  <p className="text-sm text-muted-foreground">
+                    💡 Adding pickup points helps passengers find convenient locations to meet you along your route.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Date & Time */}
+            {step === 3 && (
               <div className="space-y-6 animate-fade-in">
                 <div className="text-center mb-6">
                   <div className="w-16 h-16 rounded-2xl bg-indigo-light flex items-center justify-center mx-auto mb-4">
@@ -340,8 +386,8 @@ export default function Publish() {
               </div>
             )}
 
-            {/* Step 3: Comfort */}
-            {step === 3 && (
+            {/* Step 4: Comfort */}
+            {step === 4 && (
               <div className="space-y-6 animate-fade-in">
                 <div className="text-center mb-6">
                   <div className="w-16 h-16 rounded-2xl bg-indigo-light flex items-center justify-center mx-auto mb-4">
@@ -387,8 +433,8 @@ export default function Publish() {
               </div>
             )}
 
-            {/* Step 4: Price */}
-            {step === 4 && (
+            {/* Step 5: Price */}
+            {step === 5 && (
               <div className="space-y-6 animate-fade-in">
                 <div className="text-center mb-6">
                   <div className="w-16 h-16 rounded-2xl bg-emerald-light flex items-center justify-center mx-auto mb-4">
@@ -469,8 +515,8 @@ export default function Publish() {
               </div>
             )}
 
-            {/* Step 5: Preferences */}
-            {step === 5 && (
+            {/* Step 6: Preferences */}
+            {step === 6 && (
               <div className="space-y-6 animate-fade-in">
                 <div className="text-center mb-6">
                   <div className="w-16 h-16 rounded-2xl bg-indigo-light flex items-center justify-center mx-auto mb-4">

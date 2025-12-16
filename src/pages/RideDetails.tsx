@@ -25,6 +25,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { PLATFORM_FEE_PERCENTAGE, calculateTotalPrice } from '@/lib/constants';
+import PickupPointsManager, { PickupPoint } from '@/components/PickupPointsManager';
 
 interface RideWithDriver {
   id: string;
@@ -54,6 +55,13 @@ interface RideWithDriver {
   } | null;
 }
 
+interface PickupPointData {
+  id: string;
+  name: string;
+  address: string | null;
+  sequence_order: number;
+}
+
 export default function RideDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -62,6 +70,8 @@ export default function RideDetails() {
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(false);
   const [seatsToBook, setSeatsToBook] = useState(1);
+  const [pickupPoints, setPickupPoints] = useState<PickupPointData[]>([]);
+  const [selectedPickupPoint, setSelectedPickupPoint] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -102,6 +112,19 @@ export default function RideDetails() {
       }
 
       setRide(data);
+
+      // Fetch pickup points
+      if (data) {
+        const { data: pickupData } = await supabase
+          .from('pickup_points')
+          .select('*')
+          .eq('ride_id', data.id)
+          .order('sequence_order', { ascending: true });
+        
+        if (pickupData) {
+          setPickupPoints(pickupData);
+        }
+      }
     } catch (error) {
       console.error('Error fetching ride:', error);
       toast({
@@ -165,6 +188,7 @@ export default function RideDetails() {
         platform_fee: platformFee,
         status: 'pending',
         payment_status: 'pending',
+        pickup_point_id: selectedPickupPoint || null,
       });
 
       if (bookingError) throw bookingError;
@@ -308,6 +332,44 @@ export default function RideDetails() {
                 </div>
               </div>
             </div>
+
+            {/* Pickup Points */}
+            {pickupPoints.length > 0 && (
+              <div className="bg-card border border-border rounded-xl p-6">
+                <h2 className="font-semibold text-lg mb-4">Pickup Points</h2>
+                <p className="text-sm text-muted-foreground mb-4">Select where you'd like to be picked up</p>
+                <div className="space-y-2">
+                  {pickupPoints.map((point, index) => (
+                    <button
+                      key={point.id}
+                      onClick={() => setSelectedPickupPoint(point.id)}
+                      className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-all ${
+                        selectedPickupPoint === point.id
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:border-primary/50'
+                      }`}
+                    >
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                        selectedPickupPoint === point.id
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-muted-foreground'
+                      }`}>
+                        {index + 1}
+                      </div>
+                      <div className="flex-1 text-left">
+                        <p className="font-medium text-sm">{point.name}</p>
+                        {point.address && (
+                          <p className="text-xs text-muted-foreground">{point.address}</p>
+                        )}
+                      </div>
+                      {selectedPickupPoint === point.id && (
+                        <CheckCircle className="w-5 h-5 text-primary" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Preferences */}
             <div className="bg-card border border-border rounded-xl p-6">
