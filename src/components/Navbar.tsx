@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, Shield, Car, Search, User, Plus, LayoutDashboard } from 'lucide-react';
+import { Menu, X, Shield, Car, Search, User, Plus, LayoutDashboard, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/hooks/useAuth';
@@ -64,6 +64,15 @@ export default function Navbar() {
                 <Shield className="w-5 h-5" />
                 <span className="absolute -top-1 -right-1 w-2 h-2 bg-emerald rounded-full animate-pulse-soft" />
               </Button>
+
+              {/* Chat Button - for logged in users */}
+              {user && (
+                <Link to="/dashboard?tab=upcoming">
+                  <Button variant="ghost" size="icon" className="relative">
+                    <MessageCircle className="w-5 h-5" />
+                  </Button>
+                </Link>
+              )}
 
               {/* Auth/Profile */}
               {user ? (
