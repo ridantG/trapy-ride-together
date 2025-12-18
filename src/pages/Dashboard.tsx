@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import Chat from '@/components/Chat';
 import RatingModal from '@/components/RatingModal';
+import DriverRidesTab from '@/components/DriverRidesTab';
 
 interface BookingWithRide {
   id: string;
@@ -190,8 +191,9 @@ export default function Dashboard() {
 
         {/* Rides Tabs */}
         <Tabs defaultValue="upcoming" className="mb-6">
-          <TabsList className="w-full grid grid-cols-2">
-            <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
+          <TabsList className="w-full grid grid-cols-3">
+            <TabsTrigger value="upcoming">Booked</TabsTrigger>
+            <TabsTrigger value="myrides">My Rides</TabsTrigger>
             <TabsTrigger value="history">History</TabsTrigger>
           </TabsList>
 
@@ -261,6 +263,10 @@ export default function Dashboard() {
                 </Link>
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="myrides" className="mt-4">
+            <DriverRidesTab />
           </TabsContent>
 
           <TabsContent value="history" className="mt-4 space-y-4">
