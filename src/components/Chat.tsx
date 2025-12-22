@@ -92,7 +92,9 @@ export default function Chat({ bookingId, otherUserId, otherUserName, onClose }:
           filter: `booking_id=eq.${bookingId}`,
         },
         (payload) => {
-          if (payload.new && payload.new.user_id === otherUserId) {
+          // Check if the typing indicator is from the other user (not ourselves)
+          const typingUserId = payload.new?.user_id || payload.old?.user_id;
+          if (typingUserId && typingUserId === otherUserId && typingUserId !== user?.id) {
             setIsTyping(true);
             if (typingTimeoutRef.current) {
               clearTimeout(typingTimeoutRef.current);
@@ -128,11 +130,14 @@ export default function Chat({ bookingId, otherUserId, otherUserName, onClose }:
         .from('messages')
         .select('*')
         .eq('booking_id', bookingId)
-        .order('created_at', { ascending: true })
         .limit(MESSAGES_PER_PAGE);
 
       if (before) {
-        query = query.lt('created_at', before);
+        // For loading older messages, order descending and get messages before the timestamp
+        query = query.lt('created_at', before).order('created_at', { ascending: false });
+      } else {
+        // For initial load, get most recent messages in ascending order
+        query = query.order('created_at', { ascending: true });
       }
 
       const { data, error } = await query;
@@ -140,7 +145,9 @@ export default function Chat({ bookingId, otherUserId, otherUserName, onClose }:
       if (error) throw error;
       
       if (before) {
-        setMessages((prev) => [...(data || []), ...prev]);
+        // Reverse the data since we fetched in descending order, then prepend to existing messages
+        const reversedData = (data || []).reverse();
+        setMessages((prev) => [...reversedData, ...prev]);
       } else {
         setMessages(data || []);
       }

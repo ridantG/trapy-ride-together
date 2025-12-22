@@ -46,14 +46,16 @@ CREATE OR REPLACE FUNCTION prevent_double_booking()
 RETURNS TRIGGER AS $$
 BEGIN
   -- Check if passenger already has an active booking for this ride
-  IF EXISTS (
-    SELECT 1 FROM public.bookings 
-    WHERE ride_id = NEW.ride_id 
-      AND passenger_id = NEW.passenger_id 
-      AND status IN ('pending', 'confirmed')
-      AND id != COALESCE(NEW.id, '00000000-0000-0000-0000-000000000000'::uuid)
-  ) THEN
-    RAISE EXCEPTION 'You already have an active booking for this ride';
+  -- Only check on INSERT; on UPDATE the id will already exist
+  IF TG_OP = 'INSERT' THEN
+    IF EXISTS (
+      SELECT 1 FROM public.bookings 
+      WHERE ride_id = NEW.ride_id 
+        AND passenger_id = NEW.passenger_id 
+        AND status IN ('pending', 'confirmed')
+    ) THEN
+      RAISE EXCEPTION 'You already have an active booking for this ride';
+    END IF;
   END IF;
   RETURN NEW;
 END;
@@ -272,15 +274,7 @@ GRANT SELECT ON driver_earnings TO authenticated;
 -- 15. Create RLS policy for driver earnings view
 ALTER VIEW driver_earnings SET (security_invoker = true);
 
--- 16. Add constraint to prevent booking own ride (redundant check, but good to have)
-ALTER TABLE public.bookings ADD CONSTRAINT bookings_not_own_ride_check 
-  CHECK (
-    passenger_id != (SELECT driver_id FROM public.rides WHERE id = ride_id)
-  );
-
--- Note: The above constraint might fail on existing data, so we make it a trigger instead
-DROP CONSTRAINT IF EXISTS bookings_not_own_ride_check ON public.bookings;
-
+-- 16. Add trigger to prevent booking own ride
 CREATE OR REPLACE FUNCTION prevent_self_booking()
 RETURNS TRIGGER AS $$
 BEGIN
