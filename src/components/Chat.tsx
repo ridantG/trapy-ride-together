@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
+import { retryAsync, handleError } from '@/lib/errorHandling';
 
 interface Message {
   id: string;
@@ -126,35 +127,40 @@ export default function Chat({ bookingId, otherUserId, otherUserName, onClose }:
 
   const fetchMessages = async (before?: string) => {
     try {
-      let query = supabase
-        .from('messages')
-        .select('*')
-        .eq('booking_id', bookingId)
-        .limit(MESSAGES_PER_PAGE);
+      await retryAsync(async () => {
+        let query = supabase
+          .from('messages')
+          .select('*')
+          .eq('booking_id', bookingId)
+          .limit(MESSAGES_PER_PAGE);
 
-      if (before) {
-        // For loading older messages, order descending and get messages before the timestamp
-        query = query.lt('created_at', before).order('created_at', { ascending: false });
-      } else {
-        // For initial load, get most recent messages in ascending order
-        query = query.order('created_at', { ascending: true });
-      }
+        if (before) {
+          // For loading older messages, order descending and get messages before the timestamp
+          query = query.lt('created_at', before).order('created_at', { ascending: false });
+        } else {
+          // For initial load, get most recent messages in ascending order
+          query = query.order('created_at', { ascending: true });
+        }
 
-      const { data, error } = await query;
+        const { data, error } = await query;
 
-      if (error) throw error;
-      
-      if (before) {
-        // Reverse the data since we fetched in descending order, then prepend to existing messages
-        const reversedData = (data || []).reverse();
-        setMessages((prev) => [...reversedData, ...prev]);
-      } else {
-        setMessages(data || []);
-      }
-      
-      setHasMore((data?.length || 0) === MESSAGES_PER_PAGE);
+        if (error) throw error;
+        
+        if (before) {
+          // Reverse the data since we fetched in descending order, then prepend to existing messages
+          const reversedData = (data || []).reverse();
+          setMessages((prev) => [...reversedData, ...prev]);
+        } else {
+          setMessages(data || []);
+        }
+        
+        setHasMore((data?.length || 0) === MESSAGES_PER_PAGE);
+      }, {
+        maxRetries: 2,
+        retryDelay: 1000,
+      });
     } catch (error) {
-      console.error('Error fetching messages:', error);
+      handleError(error, 'Failed to load messages');
     } finally {
       setLoading(false);
     }
@@ -190,16 +196,22 @@ export default function Chat({ bookingId, otherUserId, otherUserName, onClose }:
 
     setSending(true);
     try {
-      const { error } = await supabase.from('messages').insert({
-        booking_id: bookingId,
-        sender_id: user.id,
-        content: newMessage.trim(),
-      });
+      await retryAsync(async () => {
+        const { error } = await supabase.from('messages').insert({
+          booking_id: bookingId,
+          sender_id: user.id,
+          content: newMessage.trim(),
+        });
 
-      if (error) throw error;
+        if (error) throw error;
+      }, {
+        maxRetries: 1,
+        retryDelay: 1000,
+      });
+      
       setNewMessage('');
     } catch (error) {
-      console.error('Error sending message:', error);
+      handleError(error, 'Failed to send message. Please try again.');
     } finally {
       setSending(false);
     }

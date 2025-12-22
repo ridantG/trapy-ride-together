@@ -29,6 +29,7 @@ import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { MAX_PRICE_PER_KM } from '@/lib/constants';
 import PickupPointsManager, { PickupPoint } from '@/components/PickupPointsManager';
+import { retryAsync, handleError, handleSuccess } from '@/lib/errorHandling';
 
 export default function Publish() {
   const navigate = useNavigate();
@@ -121,62 +122,61 @@ export default function Publish() {
     setIsPublishing(true);
 
     try {
-      // Combine date and time into departure_time
-      const [hours, minutes] = time.split(':').map(Number);
-      const departureTime = new Date(date);
-      departureTime.setHours(hours, minutes, 0, 0);
+      await retryAsync(async () => {
+        // Combine date and time into departure_time
+        const [hours, minutes] = time.split(':').map(Number);
+        const departureTime = new Date(date);
+        departureTime.setHours(hours, minutes, 0, 0);
 
-      const { data: rideData, error } = await supabase.from('rides').insert({
-        driver_id: user.id,
-        origin: from,
-        destination: to,
-        departure_time: departureTime.toISOString(),
-        seats_available: seats,
-        price_per_seat: price,
-        distance_km: distanceKm || null,
-        car_model: carModel || null,
-        car_number: carNumber || null,
-        is_women_only: womenOnly,
-        is_pet_friendly: petFriendly,
-        is_smoking_allowed: smokingAllowed,
-        is_music_allowed: musicAllowed,
-        is_chatty: chatty !== 'quiet',
-        max_two_back_seat: maxTwoInBack,
-        status: 'active',
-      }).select().single();
+        const { data: rideData, error } = await supabase.from('rides').insert({
+          driver_id: user.id,
+          origin: from,
+          destination: to,
+          departure_time: departureTime.toISOString(),
+          seats_available: seats,
+          price_per_seat: price,
+          distance_km: distanceKm || null,
+          car_model: carModel || null,
+          car_number: carNumber || null,
+          is_women_only: womenOnly,
+          is_pet_friendly: petFriendly,
+          is_smoking_allowed: smokingAllowed,
+          is_music_allowed: musicAllowed,
+          is_chatty: chatty !== 'quiet',
+          max_two_back_seat: maxTwoInBack,
+          status: 'active',
+        }).select().single();
 
-      if (error) throw error;
+        if (error) throw error;
 
-      // Insert pickup points if any
-      if (pickupPoints.length > 0 && rideData) {
-        const pickupPointsData = pickupPoints.map((point) => ({
-          ride_id: rideData.id,
-          name: point.name,
-          address: point.address || null,
-          sequence_order: point.sequence_order,
-        }));
+        // Insert pickup points if any
+        if (pickupPoints.length > 0 && rideData) {
+          const pickupPointsData = pickupPoints.map((point) => ({
+            ride_id: rideData.id,
+            name: point.name,
+            address: point.address || null,
+            sequence_order: point.sequence_order,
+          }));
 
-        const { error: pickupError } = await supabase
-          .from('pickup_points')
-          .insert(pickupPointsData);
+          const { error: pickupError } = await supabase
+            .from('pickup_points')
+            .insert(pickupPointsData);
 
-        if (pickupError) {
-          console.error('Error adding pickup points:', pickupError);
+          if (pickupError) {
+            // Log but don't fail the ride creation
+            console.error('Error adding pickup points:', pickupError);
+            handleError(pickupError, 'Ride published, but failed to add pickup points');
+          }
         }
-      }
-
-      toast({
-        title: 'Ride Published!',
-        description: 'Your ride has been published successfully. Passengers can now book seats.',
+      }, {
+        maxRetries: 1,
+        retryDelay: 1000,
       });
+
+      handleSuccess('Ride Published!', 'Your ride has been published successfully. Passengers can now book seats.');
       navigate('/dashboard');
     } catch (error: any) {
-      console.error('Error publishing ride:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to publish ride. Please try again.',
-        variant: 'destructive',
-      });
+      handleError(error, 'Failed to publish ride. Please try again.');
     } finally {
       setIsPublishing(false);
     }

@@ -14,6 +14,8 @@ import { toast } from '@/hooks/use-toast';
 import Chat from '@/components/Chat';
 import RatingModal from '@/components/RatingModal';
 import DriverRidesTab from '@/components/DriverRidesTab';
+import { BookingCardSkeleton, ProfileHeaderSkeleton } from '@/components/skeletons';
+import { retryAsync, handleError, handleSuccess } from '@/lib/errorHandling';
 
 interface BookingWithRide {
   id: string;
@@ -64,33 +66,38 @@ export default function Dashboard() {
     if (!user) return;
     
     try {
-      const { data, error } = await supabase
-        .from('bookings')
-        .select(`
-          id,
-          seats_booked,
-          total_price,
-          status,
-          created_at,
-          rides (
+      await retryAsync(async () => {
+        const { data, error } = await supabase
+          .from('bookings')
+          .select(`
             id,
-            origin,
-            destination,
-            departure_time,
-            price_per_seat,
-            driver_id,
-            profiles!rides_driver_id_fkey (
-              full_name
+            seats_booked,
+            total_price,
+            status,
+            created_at,
+            rides (
+              id,
+              origin,
+              destination,
+              departure_time,
+              price_per_seat,
+              driver_id,
+              profiles!rides_driver_id_fkey (
+                full_name
+              )
             )
-          )
-        `)
-        .eq('passenger_id', user.id)
-        .order('created_at', { ascending: false });
+          `)
+          .eq('passenger_id', user.id)
+          .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setBookings(data as BookingWithRide[] || []);
+        if (error) throw error;
+        setBookings(data as BookingWithRide[] || []);
+      }, {
+        maxRetries: 2,
+        retryDelay: 1000,
+      });
     } catch (error) {
-      console.error('Error fetching bookings:', error);
+      handleError(error, 'Failed to load your bookings');
     } finally {
       setLoading(false);
     }
@@ -103,25 +110,21 @@ export default function Dashboard() {
 
     setCancellingBooking(bookingId);
     try {
-      const { error } = await supabase.rpc('cancel_booking', {
-        p_booking_id: bookingId,
+      await retryAsync(async () => {
+        const { error } = await supabase.rpc('cancel_booking', {
+          p_booking_id: bookingId,
+        });
+
+        if (error) throw error;
+      }, {
+        maxRetries: 1,
+        retryDelay: 1000,
       });
 
-      if (error) throw error;
-
-      toast({
-        title: 'Booking Cancelled',
-        description: 'Your booking has been cancelled successfully.',
-      });
-
+      handleSuccess('Booking Cancelled', 'Your booking has been cancelled successfully.');
       fetchBookings();
     } catch (error: any) {
-      console.error('Error cancelling booking:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to cancel booking.',
-        variant: 'destructive',
-      });
+      handleError(error, 'Failed to cancel booking. Please try again.');
     } finally {
       setCancellingBooking(null);
     }
@@ -131,15 +134,22 @@ export default function Dashboard() {
     if (!user) return;
     
     try {
-      const { data } = await supabase
-        .from('ratings')
-        .select('booking_id, rater_id')
-        .eq('rater_id', user.id);
-      
-      if (data) {
-        setExistingRatings(data);
-      }
+      await retryAsync(async () => {
+        const { data, error } = await supabase
+          .from('ratings')
+          .select('booking_id, rater_id')
+          .eq('rater_id', user.id);
+        
+        if (error) throw error;
+        if (data) {
+          setExistingRatings(data);
+        }
+      }, {
+        maxRetries: 2,
+        retryDelay: 1000,
+      });
     } catch (error) {
+      // Silent fail for ratings fetch - not critical
       console.error('Error fetching ratings:', error);
     }
   };
@@ -232,10 +242,11 @@ export default function Dashboard() {
 
           <TabsContent value="upcoming" className="mt-4 space-y-4">
             {loading ? (
-              <div className="text-center py-12">
-                <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
-                <p className="text-muted-foreground">Loading your rides...</p>
-              </div>
+              <>
+                <BookingCardSkeleton />
+                <BookingCardSkeleton />
+                <BookingCardSkeleton />
+              </>
             ) : upcomingBookings.length > 0 ? (
               upcomingBookings.map((booking) => (
                 <div key={booking.id} className="bg-card border border-border rounded-xl p-4 hover:shadow-soft transition-shadow">
