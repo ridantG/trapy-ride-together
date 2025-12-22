@@ -13,6 +13,13 @@ interface Message {
   content: string;
   created_at: string;
   is_read: boolean;
+  read_at: string | null;
+}
+
+interface TypingIndicator {
+  booking_id: string;
+  user_id: string;
+  last_typed_at: string;
 }
 
 interface ChatProps {
@@ -22,19 +29,25 @@ interface ChatProps {
   onClose: () => void;
 }
 
+const MESSAGES_PER_PAGE = 50;
+
 export default function Chat({ bookingId, otherUserId, otherUserName, onClose }: ChatProps) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     fetchMessages();
+    markMessagesAsRead();
     
     // Subscribe to realtime messages
-    const channel = supabase
+    const messagesChannel = supabase
       .channel(`chat-${bookingId}`)
       .on(
         'postgres_changes',
@@ -46,14 +59,62 @@ export default function Chat({ bookingId, otherUserId, otherUserName, onClose }:
         },
         (payload) => {
           setMessages((prev) => [...prev, payload.new as Message]);
+          if (payload.new.sender_id !== user?.id) {
+            markMessagesAsRead();
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+          filter: `booking_id=eq.${bookingId}`,
+        },
+        (payload) => {
+          setMessages((prev) =>
+            prev.map((msg) => (msg.id === payload.new.id ? (payload.new as Message) : msg))
+          );
+        }
+      )
+      .subscribe();
+
+    // Subscribe to typing indicators
+    const typingChannel = supabase
+      .channel(`typing-${bookingId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'typing_indicators',
+          filter: `booking_id=eq.${bookingId}`,
+        },
+        (payload) => {
+          // Check if the typing indicator is from the other user (not ourselves)
+          const typingUserId = payload.new?.user_id || payload.old?.user_id;
+          if (typingUserId && typingUserId === otherUserId && typingUserId !== user?.id) {
+            setIsTyping(true);
+            if (typingTimeoutRef.current) {
+              clearTimeout(typingTimeoutRef.current);
+            }
+            typingTimeoutRef.current = setTimeout(() => {
+              setIsTyping(false);
+            }, 3000);
+          }
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(messagesChannel);
+      supabase.removeChannel(typingChannel);
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
     };
-  }, [bookingId]);
+  }, [bookingId, otherUserId, user]);
 
   useEffect(() => {
     scrollToBottom();
@@ -63,20 +124,64 @@ export default function Chat({ bookingId, otherUserId, otherUserName, onClose }:
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const fetchMessages = async () => {
+  const fetchMessages = async (before?: string) => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('messages')
         .select('*')
         .eq('booking_id', bookingId)
-        .order('created_at', { ascending: true });
+        .limit(MESSAGES_PER_PAGE);
+
+      if (before) {
+        // For loading older messages, order descending and get messages before the timestamp
+        query = query.lt('created_at', before).order('created_at', { ascending: false });
+      } else {
+        // For initial load, get most recent messages in ascending order
+        query = query.order('created_at', { ascending: true });
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
-      setMessages(data || []);
+      
+      if (before) {
+        // Reverse the data since we fetched in descending order, then prepend to existing messages
+        const reversedData = (data || []).reverse();
+        setMessages((prev) => [...reversedData, ...prev]);
+      } else {
+        setMessages(data || []);
+      }
+      
+      setHasMore((data?.length || 0) === MESSAGES_PER_PAGE);
     } catch (error) {
       console.error('Error fetching messages:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const markMessagesAsRead = async () => {
+    if (!user) return;
+    try {
+      await supabase.rpc('mark_messages_read', {
+        p_booking_id: bookingId,
+        p_user_id: user.id,
+      });
+    } catch (error) {
+      console.error('Error marking messages as read:', error);
+    }
+  };
+
+  const updateTypingIndicator = async () => {
+    if (!user) return;
+    try {
+      await supabase.from('typing_indicators').upsert({
+        booking_id: bookingId,
+        user_id: user.id,
+        last_typed_at: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Error updating typing indicator:', error);
     }
   };
 
@@ -107,6 +212,11 @@ export default function Chat({ bookingId, otherUserId, otherUserName, onClose }:
     }
   };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewMessage(e.target.value);
+    updateTypingIndicator();
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center">
       <div className="bg-card w-full max-w-lg h-[80vh] md:h-[600px] md:rounded-2xl flex flex-col">
@@ -114,7 +224,9 @@ export default function Chat({ bookingId, otherUserId, otherUserName, onClose }:
         <div className="flex items-center justify-between p-4 border-b border-border">
           <div>
             <h3 className="font-semibold">Chat with {otherUserName}</h3>
-            <p className="text-xs text-muted-foreground">Booking conversation</p>
+            <p className="text-xs text-muted-foreground">
+              {isTyping ? 'Typing...' : 'Booking conversation'}
+            </p>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="w-5 h-5" />
@@ -132,32 +244,49 @@ export default function Chat({ bookingId, otherUserId, otherUserName, onClose }:
               <p>No messages yet. Start the conversation!</p>
             </div>
           ) : (
-            messages.map((message) => {
-              const isOwn = message.sender_id === user?.id;
-              return (
-                <div
-                  key={message.id}
-                  className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
+            <>
+              {hasMore && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => fetchMessages(messages[0]?.created_at)}
                 >
+                  Load older messages
+                </Button>
+              )}
+              {messages.map((message) => {
+                const isOwn = message.sender_id === user?.id;
+                return (
                   <div
-                    className={`max-w-[75%] rounded-2xl px-4 py-2 ${
-                      isOwn
-                        ? 'bg-primary text-primary-foreground rounded-br-md'
-                        : 'bg-muted rounded-bl-md'
-                    }`}
+                    key={message.id}
+                    className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
                   >
-                    <p className="text-sm">{message.content}</p>
-                    <p
-                      className={`text-xs mt-1 ${
-                        isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                    <div
+                      className={`max-w-[75%] rounded-2xl px-4 py-2 ${
+                        isOwn
+                          ? 'bg-primary text-primary-foreground rounded-br-md'
+                          : 'bg-muted rounded-bl-md'
                       }`}
                     >
-                      {format(new Date(message.created_at), 'h:mm a')}
-                    </p>
+                      <p className="text-sm">{message.content}</p>
+                      <div className="flex items-center gap-2 justify-between">
+                        <p
+                          className={`text-xs mt-1 ${
+                            isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                          }`}
+                        >
+                          {format(new Date(message.created_at), 'h:mm a')}
+                        </p>
+                        {isOwn && message.is_read && (
+                          <span className="text-xs text-primary-foreground/70">✓✓</span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              );
-            })
+                );
+              })}
+            </>
           )}
           <div ref={messagesEndRef} />
         </div>
@@ -168,7 +297,7 @@ export default function Chat({ bookingId, otherUserId, otherUserName, onClose }:
             <Input
               placeholder="Type a message..."
               value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
+              onChange={handleInputChange}
               onKeyPress={handleKeyPress}
               className="flex-1"
             />

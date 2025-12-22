@@ -3,13 +3,14 @@ import { Link } from 'react-router-dom';
 import { 
   Car, Wallet, Settings, Clock, MapPin, Star, 
   Calendar, ChevronRight, Shield, AlertTriangle,
-  Crown, Phone, CreditCard, Loader2, MessageCircle
+  Crown, Phone, CreditCard, Loader2, MessageCircle, XCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
+import { toast } from '@/hooks/use-toast';
 import Chat from '@/components/Chat';
 import RatingModal from '@/components/RatingModal';
 import DriverRidesTab from '@/components/DriverRidesTab';
@@ -50,6 +51,7 @@ export default function Dashboard() {
   
   // Rating state
   const [ratingBooking, setRatingBooking] = useState<BookingWithRide | null>(null);
+  const [cancellingBooking, setCancellingBooking] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -91,6 +93,37 @@ export default function Dashboard() {
       console.error('Error fetching bookings:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCancelBooking = async (bookingId: string) => {
+    if (!window.confirm('Are you sure you want to cancel this booking?')) {
+      return;
+    }
+
+    setCancellingBooking(bookingId);
+    try {
+      const { error } = await supabase.rpc('cancel_booking', {
+        p_booking_id: bookingId,
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Booking Cancelled',
+        description: 'Your booking has been cancelled successfully.',
+      });
+
+      fetchBookings();
+    } catch (error: any) {
+      console.error('Error cancelling booking:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to cancel booking.',
+        variant: 'destructive',
+      });
+    } finally {
+      setCancellingBooking(null);
     }
   };
 
@@ -236,21 +269,41 @@ export default function Dashboard() {
                     </div>
                   </Link>
                   {/* Chat Button */}
-                  <div className="mt-3 pt-3 border-t border-border flex justify-between items-center">
+                  <div className="mt-3 pt-3 border-t border-border flex justify-between items-center gap-2">
                     <p className="text-xs text-muted-foreground">
                       Driver: {booking.rides?.profiles?.full_name || 'Unknown'}
                     </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        setActiveChatBooking(booking);
-                      }}
-                    >
-                      <MessageCircle className="w-4 h-4 mr-2" />
-                      Chat
-                    </Button>
+                    <div className="flex gap-2">
+                      {booking.status === 'pending' && booking.rides && new Date(booking.rides.departure_time) > new Date() && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          disabled={cancellingBooking === booking.id}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handleCancelBooking(booking.id);
+                          }}
+                        >
+                          {cancellingBooking === booking.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <><XCircle className="w-4 h-4 mr-1" />Cancel</>
+                          )}
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setActiveChatBooking(booking);
+                        }}
+                      >
+                        <MessageCircle className="w-4 h-4 mr-2" />
+                        Chat
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))

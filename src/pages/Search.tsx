@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Filter, SlidersHorizontal, X, Users, PawPrint, Zap, Loader2 } from 'lucide-react';
+import { Filter, SlidersHorizontal, X, Users, PawPrint, Zap, Loader2, Car } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
@@ -47,8 +47,10 @@ export default function Search() {
   const [womenOnly, setWomenOnly] = useState(false);
   const [petFriendly, setPetFriendly] = useState(false);
   const [instantApproval, setInstantApproval] = useState(false);
+  const [sortBy, setSortBy] = useState<'departure_time' | 'price'>('departure_time');
   const [rides, setRides] = useState<RideWithDriver[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchRides();
@@ -56,6 +58,7 @@ export default function Search() {
 
   const fetchRides = async () => {
     setLoading(true);
+    setError(null);
     try {
       let query = supabase
         .from('rides')
@@ -83,9 +86,9 @@ export default function Search() {
         query = query.ilike('destination', `%${searchParams.to}%`);
       }
 
-      const { data, error } = await query.order('departure_time', { ascending: true });
+      const { data, error: queryError } = await query.order('departure_time', { ascending: true });
 
-      if (error) throw error;
+      if (queryError) throw queryError;
 
       // Filter women-only rides based on user gender
       let filteredData = data as RideWithDriver[];
@@ -94,26 +97,45 @@ export default function Search() {
       }
 
       setRides(filteredData);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching rides:', error);
+      setError(error.message || 'Failed to fetch rides. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   const timeSlots = [
-    { id: 'early', label: '6am - 9am' },
-    { id: 'morning', label: '9am - 12pm' },
-    { id: 'afternoon', label: '12pm - 6pm' },
-    { id: 'evening', label: '6pm - 10pm' },
+    { id: 'early', label: '6am - 9am', start: 6, end: 9 },
+    { id: 'morning', label: '9am - 12pm', start: 9, end: 12 },
+    { id: 'afternoon', label: '12pm - 6pm', start: 12, end: 18 },
+    { id: 'evening', label: '6pm - 10pm', start: 18, end: 22 },
   ];
 
-  const filteredRides = rides.filter((ride) => {
-    if (ride.price_per_seat < priceRange[0] || ride.price_per_seat > priceRange[1]) return false;
-    if (womenOnly && !ride.is_women_only) return false;
-    if (petFriendly && !ride.is_pet_friendly) return false;
-    return true;
-  });
+  const isInTimeSlot = (departureTime: string, slotIds: string[]) => {
+    if (slotIds.length === 0) return true;
+    const hour = new Date(departureTime).getHours();
+    return slotIds.some(slotId => {
+      const slot = timeSlots.find(s => s.id === slotId);
+      return slot && hour >= slot.start && hour < slot.end;
+    });
+  };
+
+  const filteredRides = rides
+    .filter((ride) => {
+      if (ride.price_per_seat < priceRange[0] || ride.price_per_seat > priceRange[1]) return false;
+      if (womenOnly && !ride.is_women_only) return false;
+      if (petFriendly && !ride.is_pet_friendly) return false;
+      if (instantApproval && !ride.instant_approval) return false;
+      if (!isInTimeSlot(ride.departure_time, departureTime)) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'price') {
+        return a.price_per_seat - b.price_per_seat;
+      }
+      return new Date(a.departure_time).getTime() - new Date(b.departure_time).getTime();
+    });
 
   const FilterContent = () => (
     <div className="space-y-6">
@@ -176,6 +198,37 @@ export default function Search() {
             <Label htmlFor="pet-friendly">Pet Friendly</Label>
           </div>
           <Switch id="pet-friendly" checked={petFriendly} onCheckedChange={setPetFriendly} />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Zap className="w-4 h-4 text-warning" />
+            <Label htmlFor="instant-approval">Instant Approval</Label>
+          </div>
+          <Switch id="instant-approval" checked={instantApproval} onCheckedChange={setInstantApproval} />
+        </div>
+      </div>
+
+      {/* Sort By */}
+      <div>
+        <Label className="text-base font-semibold mb-4 block">Sort By</Label>
+        <div className="flex gap-2">
+          <Button
+            variant={sortBy === 'departure_time' ? 'default' : 'outline'}
+            size="sm"
+            className="flex-1"
+            onClick={() => setSortBy('departure_time')}
+          >
+            Departure Time
+          </Button>
+          <Button
+            variant={sortBy === 'price' ? 'default' : 'outline'}
+            size="sm"
+            className="flex-1"
+            onClick={() => setSortBy('price')}
+          >
+            Price
+          </Button>
         </div>
       </div>
 
@@ -254,15 +307,31 @@ export default function Search() {
                 <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
                 <p className="text-muted-foreground">Searching for rides...</p>
               </div>
+            ) : error ? (
+              <div className="bg-card border border-destructive/50 rounded-xl p-12 text-center">
+                <p className="text-destructive font-medium mb-2">Search Failed</p>
+                <p className="text-muted-foreground mb-4">{error}</p>
+                <Button variant="outline" onClick={fetchRides}>
+                  Try Again
+                </Button>
+              </div>
             ) : filteredRides.length > 0 ? (
               filteredRides.map((ride) => (
                 <RideCard key={ride.id} ride={ride} />
               ))
             ) : (
               <div className="bg-card border border-border rounded-xl p-12 text-center">
-                <p className="text-muted-foreground">No rides found matching your criteria</p>
+                <Car className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <p className="font-medium mb-2">No rides found</p>
+                <p className="text-muted-foreground mb-4">
+                  {rides.length === 0 
+                    ? "No rides match your search. Try different cities or dates."
+                    : "No rides match your filters. Try adjusting them."
+                  }
+                </p>
                 <Button variant="link" onClick={() => {
                   setPriceRange([0, 1000]);
+                  setDepartureTime([]);
                   setWomenOnly(false);
                   setPetFriendly(false);
                   setInstantApproval(false);
