@@ -149,8 +149,8 @@ export default function Dashboard() {
         retryDelay: 1000,
       });
     } catch (error) {
-      // Silent fail for ratings fetch - not critical
-      console.error('Error fetching ratings:', error);
+      // Non-critical - ratings are used for display only, log for debugging
+      console.error('Error fetching ratings (non-critical):', error);
     }
   };
 

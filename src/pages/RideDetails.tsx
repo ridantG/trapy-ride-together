@@ -125,8 +125,8 @@ export default function RideDetails() {
             .order('sequence_order', { ascending: true });
           
           if (pickupError) {
-            // Log but don't fail - pickup points are optional
-            console.error('Error fetching pickup points:', pickupError);
+            // Pickup points are optional - log for debugging but don't fail
+            console.error('Error fetching pickup points (non-critical):', pickupError);
           } else if (pickupData) {
             setPickupPoints(pickupData);
           }

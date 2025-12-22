@@ -174,7 +174,8 @@ export default function Chat({ bookingId, otherUserId, otherUserName, onClose }:
         p_user_id: user.id,
       });
     } catch (error) {
-      console.error('Error marking messages as read:', error);
+      // Non-critical - marking messages as read is a background operation
+      console.error('Error marking messages as read (non-critical):', error);
     }
   };
 
@@ -187,7 +188,8 @@ export default function Chat({ bookingId, otherUserId, otherUserName, onClose }:
         last_typed_at: new Date().toISOString(),
       });
     } catch (error) {
-      console.error('Error updating typing indicator:', error);
+      // Non-critical - typing indicators are for UX only, doesn't affect functionality
+      console.error('Error updating typing indicator (non-critical):', error);
     }
   };
 

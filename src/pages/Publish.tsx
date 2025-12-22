@@ -163,8 +163,7 @@ export default function Publish() {
             .insert(pickupPointsData);
 
           if (pickupError) {
-            // Log but don't fail the ride creation
-            console.error('Error adding pickup points:', pickupError);
+            // Log for debugging but don't fail the ride creation
             handleError(pickupError, 'Ride published, but failed to add pickup points');
           }
         }

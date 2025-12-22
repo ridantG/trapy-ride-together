@@ -132,7 +132,8 @@ export default function DriverRidesTab() {
         setExistingRatings(data);
       }
     } catch (error) {
-      console.error('Error fetching ratings:', error);
+      // Non-critical - ratings are used for display only, log for debugging
+      console.error('Error fetching ratings (non-critical):', error);
     }
   };
 
@@ -149,7 +150,8 @@ export default function DriverRidesTab() {
       if (error) throw error;
       setEarnings(data);
     } catch (error) {
-      console.error('Error fetching earnings:', error);
+      // Non-critical - earnings are for display only, log for debugging
+      console.error('Error fetching earnings (non-critical):', error);
     }
   };
 
