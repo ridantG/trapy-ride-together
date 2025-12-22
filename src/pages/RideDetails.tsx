@@ -20,12 +20,14 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { PLATFORM_FEE_PERCENTAGE, calculateTotalPrice } from '@/lib/constants';
 import PickupPointsManager, { PickupPoint } from '@/components/PickupPointsManager';
+import { retryAsync, handleError, handleSuccess } from '@/lib/errorHandling';
 
 interface RideWithDriver {
   id: string;
@@ -81,57 +83,61 @@ export default function RideDetails() {
 
   const fetchRide = async () => {
     try {
-      const { data, error } = await supabase
-        .from('rides')
-        .select(`
-          *,
-          profiles!rides_driver_id_fkey (
-            full_name,
-            avatar_url,
-            rating,
-            total_rides,
-            is_aadhaar_verified,
-            is_phone_verified,
-            phone
-          )
-        `)
-        .eq('id', id)
-        .maybeSingle();
+      await retryAsync(async () => {
+        const { data, error } = await supabase
+          .from('rides')
+          .select(`
+            *,
+            profiles!rides_driver_id_fkey (
+              full_name,
+              avatar_url,
+              rating,
+              total_rides,
+              is_aadhaar_verified,
+              is_phone_verified,
+              phone
+            )
+          `)
+          .eq('id', id)
+          .maybeSingle();
 
-      if (error) throw error;
-      
-      // Check if user can view women-only ride
-      if (data?.is_women_only && profile?.gender !== 'female') {
-        toast({
-          title: 'Access Denied',
-          description: 'This is a women-only ride.',
-          variant: 'destructive',
-        });
-        navigate('/search');
-        return;
-      }
-
-      setRide(data);
-
-      // Fetch pickup points
-      if (data) {
-        const { data: pickupData } = await supabase
-          .from('pickup_points')
-          .select('*')
-          .eq('ride_id', data.id)
-          .order('sequence_order', { ascending: true });
+        if (error) throw error;
         
-        if (pickupData) {
-          setPickupPoints(pickupData);
+        // Check if user can view women-only ride
+        if (data?.is_women_only && profile?.gender !== 'female') {
+          toast({
+            title: 'Access Denied',
+            description: 'This is a women-only ride.',
+            variant: 'destructive',
+          });
+          navigate('/search');
+          return;
         }
-      }
-    } catch (error) {
-      console.error('Error fetching ride:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load ride details.',
-        variant: 'destructive',
+
+        setRide(data);
+
+        // Fetch pickup points
+        if (data) {
+          const { data: pickupData, error: pickupError } = await supabase
+            .from('pickup_points')
+            .select('*')
+            .eq('ride_id', data.id)
+            .order('sequence_order', { ascending: true });
+          
+          if (pickupError) {
+            // Pickup points are optional - log for debugging but don't fail
+            console.error('Error fetching pickup points (non-critical):', pickupError);
+          } else if (pickupData) {
+            setPickupPoints(pickupData);
+          }
+        }
+      }, {
+        maxRetries: 2,
+        retryDelay: 1000,
       });
+    } catch (error) {
+      handleError(error, 'Failed to load ride details');
+      navigate('/search');
     } finally {
       setLoading(false);
     }
@@ -180,33 +186,29 @@ export default function RideDetails() {
     setBooking(true);
 
     try {
-      const { totalPrice, platformFee } = calculateTotalPrice(ride.price_per_seat, seatsToBook);
+      await retryAsync(async () => {
+        const { totalPrice, platformFee } = calculateTotalPrice(ride.price_per_seat, seatsToBook);
 
-      // Use database function for atomic booking with row-level locking
-      const { data, error } = await supabase.rpc('book_ride_seats', {
-        p_ride_id: ride.id,
-        p_passenger_id: user.id,
-        p_seats_requested: seatsToBook,
-        p_total_price: totalPrice,
-        p_platform_fee: platformFee,
-        p_pickup_point_id: selectedPickupPoint || null,
+        // Use database function for atomic booking with row-level locking
+        const { data, error } = await supabase.rpc('book_ride_seats', {
+          p_ride_id: ride.id,
+          p_passenger_id: user.id,
+          p_seats_requested: seatsToBook,
+          p_total_price: totalPrice,
+          p_platform_fee: platformFee,
+          p_pickup_point_id: selectedPickupPoint || null,
+        });
+
+        if (error) throw error;
+      }, {
+        maxRetries: 1,
+        retryDelay: 1000,
       });
 
-      if (error) throw error;
-
-      toast({
-        title: 'Booking Successful!',
-        description: `You have booked ${seatsToBook} seat(s) for ₹${totalPrice}.`,
-      });
-
+      handleSuccess('Booking Successful!', `You have booked ${seatsToBook} seat(s).`);
       navigate('/dashboard');
     } catch (error: any) {
-      console.error('Error booking ride:', error);
-      toast({
-        title: 'Booking Failed',
-        description: error.message || 'Failed to book ride. Please try again.',
-        variant: 'destructive',
-      });
+      handleError(error, 'Failed to book ride. Please try again.');
     } finally {
       setBooking(false);
     }
@@ -214,8 +216,39 @@ export default function RideDetails() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-muted/30 pt-16 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="min-h-screen bg-muted/30 pt-16">
+        <div className="bg-card border-b border-border sticky top-16 z-40">
+          <div className="container px-4 py-4">
+            <div className="flex items-center gap-4">
+              <Skeleton className="h-10 w-10 rounded-md" />
+              <div className="flex-1">
+                <Skeleton className="h-6 w-48 mb-2" />
+                <Skeleton className="h-4 w-32" />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="container px-4 py-6">
+          <div className="grid lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              <Skeleton className="rounded-2xl h-48 md:h-64" />
+              <div className="bg-card border border-border rounded-xl p-6">
+                <Skeleton className="h-6 w-32 mb-6" />
+                <div className="space-y-4">
+                  <Skeleton className="h-20" />
+                  <Skeleton className="h-20" />
+                </div>
+              </div>
+            </div>
+            <div className="space-y-6">
+              <div className="bg-card border border-border rounded-xl p-6">
+                <Skeleton className="h-16 w-16 rounded-full mb-4" />
+                <Skeleton className="h-6 w-32 mb-2" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

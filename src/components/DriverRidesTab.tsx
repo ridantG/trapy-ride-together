@@ -12,6 +12,7 @@ import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import Chat from './Chat';
 import RatingModal from './RatingModal';
+import { retryAsync, handleError, handleSuccess } from '@/lib/errorHandling';
 
 interface Booking {
   id: string;
@@ -73,41 +74,46 @@ export default function DriverRidesTab() {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
-        .from('rides')
-        .select(`
-          id,
-          origin,
-          destination,
-          departure_time,
-          seats_available,
-          price_per_seat,
-          status,
-          bookings (
+      await retryAsync(async () => {
+        const { data, error } = await supabase
+          .from('rides')
+          .select(`
             id,
-            seats_booked,
-            total_price,
+            origin,
+            destination,
+            departure_time,
+            seats_available,
+            price_per_seat,
             status,
-            created_at,
-            pickup_point_id,
-            passenger_id,
-            profiles!bookings_passenger_id_fkey (
-              full_name,
-              phone,
-              rating
-            ),
-            pickup_points (
-              name
+            bookings (
+              id,
+              seats_booked,
+              total_price,
+              status,
+              created_at,
+              pickup_point_id,
+              passenger_id,
+              profiles!bookings_passenger_id_fkey (
+                full_name,
+                phone,
+                rating
+              ),
+              pickup_points (
+                name
+              )
             )
-          )
-        `)
-        .eq('driver_id', user.id)
-        .order('departure_time', { ascending: false });
+          `)
+          .eq('driver_id', user.id)
+          .order('departure_time', { ascending: false });
 
-      if (error) throw error;
-      setRides(data as DriverRide[] || []);
+        if (error) throw error;
+        setRides(data as DriverRide[] || []);
+      }, {
+        maxRetries: 2,
+        retryDelay: 1000,
+      });
     } catch (error) {
-      console.error('Error fetching driver rides:', error);
+      handleError(error, 'Failed to load your rides');
     } finally {
       setLoading(false);
     }
@@ -126,7 +132,8 @@ export default function DriverRidesTab() {
         setExistingRatings(data);
       }
     } catch (error) {
-      console.error('Error fetching ratings:', error);
+      // Non-critical - ratings are used for display only, log for debugging
+      console.error('Error fetching ratings (non-critical):', error);
     }
   };
 
@@ -143,7 +150,8 @@ export default function DriverRidesTab() {
       if (error) throw error;
       setEarnings(data);
     } catch (error) {
-      console.error('Error fetching earnings:', error);
+      // Non-critical - earnings are for display only, log for debugging
+      console.error('Error fetching earnings (non-critical):', error);
     }
   };
 
@@ -154,27 +162,23 @@ export default function DriverRidesTab() {
   const handleConfirmBooking = async (bookingId: string) => {
     setConfirmingBooking(bookingId);
     try {
-      const { error } = await supabase
-        .from('bookings')
-        .update({ status: 'confirmed' })
-        .eq('id', bookingId);
+      await retryAsync(async () => {
+        const { error } = await supabase
+          .from('bookings')
+          .update({ status: 'confirmed' })
+          .eq('id', bookingId);
 
-      if (error) throw error;
-
-      toast({
-        title: 'Booking Confirmed',
-        description: 'The passenger has been notified.',
+        if (error) throw error;
+      }, {
+        maxRetries: 1,
+        retryDelay: 1000,
       });
 
+      handleSuccess('Booking Confirmed', 'The passenger has been notified.');
       fetchDriverRides();
       fetchEarnings();
     } catch (error) {
-      console.error('Error confirming booking:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to confirm booking.',
-        variant: 'destructive',
-      });
+      handleError(error, 'Failed to confirm booking');
     } finally {
       setConfirmingBooking(null);
     }
@@ -182,26 +186,22 @@ export default function DriverRidesTab() {
 
   const handleCancelBooking = async (bookingId: string) => {
     try {
-      // Use database function for atomic cancellation with seat restoration
-      const { error } = await supabase.rpc('cancel_booking', {
-        p_booking_id: bookingId,
+      await retryAsync(async () => {
+        // Use database function for atomic cancellation with seat restoration
+        const { error } = await supabase.rpc('cancel_booking', {
+          p_booking_id: bookingId,
+        });
+
+        if (error) throw error;
+      }, {
+        maxRetries: 1,
+        retryDelay: 1000,
       });
 
-      if (error) throw error;
-
-      toast({
-        title: 'Booking Cancelled',
-        description: 'Seats have been restored.',
-      });
-
+      handleSuccess('Booking Cancelled', 'Seats have been restored.');
       fetchDriverRides();
     } catch (error: any) {
-      console.error('Error cancelling booking:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to cancel booking.',
-        variant: 'destructive',
-      });
+      handleError(error, 'Failed to cancel booking');
     }
   };
 
@@ -211,36 +211,32 @@ export default function DriverRidesTab() {
     }
 
     try {
-      // Cancel all active bookings for this ride
-      const { error: bookingsError } = await supabase
-        .from('bookings')
-        .update({ status: 'cancelled' })
-        .eq('ride_id', rideId)
-        .in('status', ['pending', 'confirmed']);
+      await retryAsync(async () => {
+        // Cancel all active bookings for this ride
+        const { error: bookingsError } = await supabase
+          .from('bookings')
+          .update({ status: 'cancelled' })
+          .eq('ride_id', rideId)
+          .in('status', ['pending', 'confirmed']);
 
-      if (bookingsError) throw bookingsError;
+        if (bookingsError) throw bookingsError;
 
-      // Cancel the ride
-      const { error: rideError } = await supabase
-        .from('rides')
-        .update({ status: 'cancelled' })
-        .eq('id', rideId);
+        // Cancel the ride
+        const { error: rideError } = await supabase
+          .from('rides')
+          .update({ status: 'cancelled' })
+          .eq('id', rideId);
 
-      if (rideError) throw rideError;
-
-      toast({
-        title: 'Ride Cancelled',
-        description: 'Your ride has been cancelled. Passengers have been notified.',
+        if (rideError) throw rideError;
+      }, {
+        maxRetries: 1,
+        retryDelay: 1000,
       });
 
+      handleSuccess('Ride Cancelled', 'Your ride has been cancelled. Passengers have been notified.');
       fetchDriverRides();
     } catch (error: any) {
-      console.error('Error cancelling ride:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to cancel ride.',
-        variant: 'destructive',
-      });
+      handleError(error, 'Failed to cancel ride');
     }
   };
 

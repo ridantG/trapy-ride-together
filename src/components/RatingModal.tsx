@@ -5,6 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import { retryAsync, handleError, handleSuccess } from '@/lib/errorHandling';
 
 interface RatingModalProps {
   bookingId: string;
@@ -34,45 +35,41 @@ export default function RatingModal({
 
     setSubmitting(true);
     try {
-      const { error } = await supabase.from('ratings').insert({
-        booking_id: bookingId,
-        rater_id: user.id,
-        rated_id: ratedUserId,
-        rating,
-        review: review.trim() || null,
-        rater_type: raterType,
+      await retryAsync(async () => {
+        const { error } = await supabase.from('ratings').insert({
+          booking_id: bookingId,
+          rater_id: user.id,
+          rated_id: ratedUserId,
+          rating,
+          review: review.trim() || null,
+          rater_type: raterType,
+        });
+
+        if (error) throw error;
+
+        // Update the rated user's average rating
+        const { data: ratings } = await supabase
+          .from('ratings')
+          .select('rating')
+          .eq('rated_id', ratedUserId);
+
+        if (ratings && ratings.length > 0) {
+          const avgRating = ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length;
+          await supabase
+            .from('profiles')
+            .update({ rating: Math.round(avgRating * 10) / 10 })
+            .eq('id', ratedUserId);
+        }
+      }, {
+        maxRetries: 1,
+        retryDelay: 1000,
       });
 
-      if (error) throw error;
-
-      // Update the rated user's average rating
-      const { data: ratings } = await supabase
-        .from('ratings')
-        .select('rating')
-        .eq('rated_id', ratedUserId);
-
-      if (ratings && ratings.length > 0) {
-        const avgRating = ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length;
-        await supabase
-          .from('profiles')
-          .update({ rating: Math.round(avgRating * 10) / 10 })
-          .eq('id', ratedUserId);
-      }
-
-      toast({
-        title: 'Rating Submitted',
-        description: `You rated ${ratedUserName} ${rating} star${rating > 1 ? 's' : ''}.`,
-      });
-
+      handleSuccess('Rating Submitted', `You rated ${ratedUserName} ${rating} star${rating > 1 ? 's' : ''}.`);
       onRated();
       onClose();
     } catch (error: any) {
-      console.error('Error submitting rating:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to submit rating.',
-        variant: 'destructive',
-      });
+      handleError(error, 'Failed to submit rating. Please try again.');
     } finally {
       setSubmitting(false);
     }

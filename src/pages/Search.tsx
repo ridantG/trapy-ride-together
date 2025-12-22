@@ -7,9 +7,11 @@ import { Label } from '@/components/ui/label';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import SearchWidget from '@/components/SearchWidget';
 import RideCard from '@/components/RideCard';
+import { RideCardSkeleton } from '@/components/skeletons';
 import { useApp } from '@/contexts/AppContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { retryAsync, handleError } from '@/lib/errorHandling';
 
 interface RideWithDriver {
   id: string;
@@ -60,46 +62,51 @@ export default function Search() {
     setLoading(true);
     setError(null);
     try {
-      let query = supabase
-        .from('rides')
-        .select(`
-          *,
-          profiles!rides_driver_id_fkey (
-            full_name,
-            avatar_url,
-            rating,
-            total_rides,
-            is_aadhaar_verified,
-            is_phone_verified,
-            gender
-          )
-        `)
-        .eq('status', 'active')
-        .gt('seats_available', 0)
-        .gte('departure_time', new Date().toISOString());
+      await retryAsync(async () => {
+        let query = supabase
+          .from('rides')
+          .select(`
+            *,
+            profiles!rides_driver_id_fkey (
+              full_name,
+              avatar_url,
+              rating,
+              total_rides,
+              is_aadhaar_verified,
+              is_phone_verified,
+              gender
+            )
+          `)
+          .eq('status', 'active')
+          .gt('seats_available', 0)
+          .gte('departure_time', new Date().toISOString());
 
-      // Filter by origin/destination if provided
-      if (searchParams.from) {
-        query = query.ilike('origin', `%${searchParams.from}%`);
-      }
-      if (searchParams.to) {
-        query = query.ilike('destination', `%${searchParams.to}%`);
-      }
+        // Filter by origin/destination if provided
+        if (searchParams.from) {
+          query = query.ilike('origin', `%${searchParams.from}%`);
+        }
+        if (searchParams.to) {
+          query = query.ilike('destination', `%${searchParams.to}%`);
+        }
 
-      const { data, error: queryError } = await query.order('departure_time', { ascending: true });
+        const { data, error: queryError } = await query.order('departure_time', { ascending: true });
 
-      if (queryError) throw queryError;
+        if (queryError) throw queryError;
 
-      // Filter women-only rides based on user gender
-      let filteredData = data as RideWithDriver[];
-      if (profile?.gender !== 'female') {
-        filteredData = filteredData.filter(ride => !ride.is_women_only);
-      }
+        // Filter women-only rides based on user gender
+        let filteredData = data as RideWithDriver[];
+        if (profile?.gender !== 'female') {
+          filteredData = filteredData.filter(ride => !ride.is_women_only);
+        }
 
-      setRides(filteredData);
+        setRides(filteredData);
+      }, {
+        maxRetries: 2,
+        retryDelay: 1000,
+      });
     } catch (error: any) {
-      console.error('Error fetching rides:', error);
       setError(error.message || 'Failed to fetch rides. Please try again.');
+      handleError(error, 'Failed to load rides. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -303,10 +310,11 @@ export default function Search() {
           {/* Results */}
           <div className="md:col-span-3 space-y-4">
             {loading ? (
-              <div className="bg-card border border-border rounded-xl p-12 text-center">
-                <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
-                <p className="text-muted-foreground">Searching for rides...</p>
-              </div>
+              <>
+                <RideCardSkeleton />
+                <RideCardSkeleton />
+                <RideCardSkeleton />
+              </>
             ) : error ? (
               <div className="bg-card border border-destructive/50 rounded-xl p-12 text-center">
                 <p className="text-destructive font-medium mb-2">Search Failed</p>
