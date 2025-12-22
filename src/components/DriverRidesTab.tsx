@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   Car, Calendar, MapPin, Users, Check, X, 
-  MessageCircle, Loader2, ChevronDown, ChevronUp, Star
+  MessageCircle, Loader2, ChevronDown, ChevronUp, Star, Edit, XCircle, IndianRupee
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -49,6 +49,7 @@ interface Rating {
 
 export default function DriverRidesTab() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [rides, setRides] = useState<DriverRide[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedRide, setExpandedRide] = useState<string | null>(null);
@@ -57,11 +58,14 @@ export default function DriverRidesTab() {
   const [activeChatRide, setActiveChatRide] = useState<DriverRide | null>(null);
   const [ratingBooking, setRatingBooking] = useState<{ booking: Booking; ride: DriverRide } | null>(null);
   const [existingRatings, setExistingRatings] = useState<Rating[]>([]);
+  const [showEarnings, setShowEarnings] = useState(false);
+  const [earnings, setEarnings] = useState<any>(null);
 
   useEffect(() => {
     if (user) {
       fetchDriverRides();
       fetchExistingRatings();
+      fetchEarnings();
     }
   }, [user]);
 
@@ -126,6 +130,23 @@ export default function DriverRidesTab() {
     }
   };
 
+  const fetchEarnings = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('driver_earnings')
+        .select('*')
+        .eq('driver_id', user.id)
+        .maybeSingle();
+      
+      if (error) throw error;
+      setEarnings(data);
+    } catch (error) {
+      console.error('Error fetching earnings:', error);
+    }
+  };
+
   const hasRated = (bookingId: string) => {
     return existingRatings.some(r => r.booking_id === bookingId);
   };
@@ -146,6 +167,7 @@ export default function DriverRidesTab() {
       });
 
       fetchDriverRides();
+      fetchEarnings();
     } catch (error) {
       console.error('Error confirming booking:', error);
       toast({
@@ -158,22 +180,14 @@ export default function DriverRidesTab() {
     }
   };
 
-  const handleCancelBooking = async (bookingId: string, seatsBooked: number, rideId: string, currentSeats: number) => {
+  const handleCancelBooking = async (bookingId: string) => {
     try {
-      const { error: bookingError } = await supabase
-        .from('bookings')
-        .update({ status: 'cancelled' })
-        .eq('id', bookingId);
+      // Use database function for atomic cancellation with seat restoration
+      const { error } = await supabase.rpc('cancel_booking', {
+        p_booking_id: bookingId,
+      });
 
-      if (bookingError) throw bookingError;
-
-      // Restore seats
-      const { error: rideError } = await supabase
-        .from('rides')
-        .update({ seats_available: currentSeats + seatsBooked })
-        .eq('id', rideId);
-
-      if (rideError) throw rideError;
+      if (error) throw error;
 
       toast({
         title: 'Booking Cancelled',
@@ -181,11 +195,50 @@ export default function DriverRidesTab() {
       });
 
       fetchDriverRides();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error cancelling booking:', error);
       toast({
         title: 'Error',
-        description: 'Failed to cancel booking.',
+        description: error.message || 'Failed to cancel booking.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleCancelRide = async (rideId: string) => {
+    if (!window.confirm('Are you sure you want to cancel this ride? All bookings will be cancelled.')) {
+      return;
+    }
+
+    try {
+      // Cancel all active bookings for this ride
+      const { error: bookingsError } = await supabase
+        .from('bookings')
+        .update({ status: 'cancelled' })
+        .eq('ride_id', rideId)
+        .in('status', ['pending', 'confirmed']);
+
+      if (bookingsError) throw bookingsError;
+
+      // Cancel the ride
+      const { error: rideError } = await supabase
+        .from('rides')
+        .update({ status: 'cancelled' })
+        .eq('id', rideId);
+
+      if (rideError) throw rideError;
+
+      toast({
+        title: 'Ride Cancelled',
+        description: 'Your ride has been cancelled. Passengers have been notified.',
+      });
+
+      fetchDriverRides();
+    } catch (error: any) {
+      console.error('Error cancelling ride:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to cancel ride.',
         variant: 'destructive',
       });
     }
@@ -216,18 +269,59 @@ export default function DriverRidesTab() {
 
   return (
     <div className="space-y-4">
+      {/* Earnings Summary Card */}
+      {earnings && (
+        <div className="bg-card border border-border rounded-xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold flex items-center gap-2">
+              <IndianRupee className="w-5 h-5" />
+              Your Earnings
+            </h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowEarnings(!showEarnings)}
+            >
+              {showEarnings ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </Button>
+          </div>
+          {showEarnings && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Total Earnings</p>
+                <p className="text-2xl font-bold text-emerald">₹{earnings.total_earnings || 0}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Total Rides</p>
+                <p className="text-2xl font-bold">{earnings.total_rides || 0}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Bookings</p>
+                <p className="text-2xl font-bold">{earnings.total_bookings || 0}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Seats Sold</p>
+                <p className="text-2xl font-bold">{earnings.total_seats_sold || 0}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {rides.map((ride) => {
         const isPast = new Date(ride.departure_time) < now;
         const activeBookings = ride.bookings.filter(b => b.status !== 'cancelled');
         const hasBookings = activeBookings.length > 0;
+        const canEdit = !isPast && ride.status === 'active';
 
         return (
           <div key={ride.id} className={`bg-card border border-border rounded-xl overflow-hidden ${isPast ? 'opacity-70' : ''}`}>
             {/* Ride Header */}
-            <div 
-              className="p-4 cursor-pointer hover:bg-muted/50 transition-colors"
-              onClick={() => setExpandedRide(expandedRide === ride.id ? null : ride.id)}
-            >
+            <div className="p-4">
+              <div 
+                className="cursor-pointer hover:bg-muted/50 transition-colors rounded-lg p-2 -m-2"
+                onClick={() => setExpandedRide(expandedRide === ride.id ? null : ride.id)}
+              >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-muted-foreground" />
@@ -237,6 +331,9 @@ export default function DriverRidesTab() {
                   <span className="text-sm text-muted-foreground">
                     {format(new Date(ride.departure_time), 'h:mm a')}
                   </span>
+                  {ride.status === 'cancelled' && (
+                    <Badge variant="destructive">Cancelled</Badge>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   {hasBookings && (
@@ -270,6 +367,34 @@ export default function DriverRidesTab() {
                   </p>
                 </div>
               </div>
+              </div>
+
+              {/* Ride Management Buttons */}
+              {canEdit && (
+                <div className="flex gap-2 mt-3 pt-3 border-t border-border">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => navigate(`/publish?edit=${ride.id}`)}
+                  >
+                    <Edit className="w-4 h-4 mr-2" />
+                    Edit Ride
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 text-destructive hover:text-destructive"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCancelRide(ride.id);
+                    }}
+                  >
+                    <XCircle className="w-4 h-4 mr-2" />
+                    Cancel Ride
+                  </Button>
+                </div>
+              )}
             </div>
 
             {/* Expanded Bookings */}
@@ -331,7 +456,7 @@ export default function DriverRidesTab() {
                                     size="sm"
                                     variant="outline"
                                     className="h-8 text-destructive hover:text-destructive"
-                                    onClick={() => handleCancelBooking(booking.id, booking.seats_booked, ride.id, ride.seats_available)}
+                                    onClick={() => handleCancelBooking(booking.id)}
                                   >
                                     <X className="w-3 h-3" />
                                   </Button>

@@ -145,6 +145,9 @@ export default function RideDetails() {
 
     if (!ride) return;
 
+    // Prevent multiple rapid clicks
+    if (booking) return;
+
     // Check if user is trying to book their own ride
     if (ride.driver_id === user.id) {
       toast({
@@ -179,27 +182,17 @@ export default function RideDetails() {
     try {
       const { totalPrice, platformFee } = calculateTotalPrice(ride.price_per_seat, seatsToBook);
 
-      // Create booking
-      const { error: bookingError } = await supabase.from('bookings').insert({
-        ride_id: ride.id,
-        passenger_id: user.id,
-        seats_booked: seatsToBook,
-        total_price: totalPrice,
-        platform_fee: platformFee,
-        status: 'pending',
-        payment_status: 'pending',
-        pickup_point_id: selectedPickupPoint || null,
+      // Use database function for atomic booking with row-level locking
+      const { data, error } = await supabase.rpc('book_ride_seats', {
+        p_ride_id: ride.id,
+        p_passenger_id: user.id,
+        p_seats_requested: seatsToBook,
+        p_total_price: totalPrice,
+        p_platform_fee: platformFee,
+        p_pickup_point_id: selectedPickupPoint || null,
       });
 
-      if (bookingError) throw bookingError;
-
-      // Update available seats
-      const { error: updateError } = await supabase
-        .from('rides')
-        .update({ seats_available: ride.seats_available - seatsToBook })
-        .eq('id', ride.id);
-
-      if (updateError) throw updateError;
+      if (error) throw error;
 
       toast({
         title: 'Booking Successful!',
