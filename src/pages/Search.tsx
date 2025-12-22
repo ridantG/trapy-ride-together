@@ -230,7 +230,6 @@ export default function Search() {
             Price
           </Button>
         </div>
-        </div>
       </div>
 
       {/* Clear Filters */}
