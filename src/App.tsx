@@ -18,6 +18,7 @@ import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import TrapyPass from "./pages/TrapyPass";
 import Verification from "./pages/Verification";
+import Messages from "./pages/Messages";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -51,6 +52,7 @@ const App = () => (
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/trapy-pass" element={<TrapyPass />} />
                 <Route path="/verification" element={<Verification />} />
+                <Route path="/messages" element={<Messages />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>

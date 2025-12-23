@@ -65,9 +65,9 @@ export default function Navbar() {
                 <span className="absolute -top-1 -right-1 w-2 h-2 bg-emerald rounded-full animate-pulse-soft" />
               </Button>
 
-              {/* Chat Button - for logged in users */}
+              {/* Messages Button - for logged in users */}
               {user && (
-                <Link to="/dashboard?tab=upcoming">
+                <Link to="/messages">
                   <Button variant="ghost" size="icon" className="relative">
                     <MessageCircle className="w-5 h-5" />
                   </Button>
