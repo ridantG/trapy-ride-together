@@ -113,6 +113,39 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          created_at: string
+          data: Json | null
+          id: string
+          is_read: boolean
+          message: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          data?: Json | null
+          id?: string
+          is_read?: boolean
+          message: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json | null
+          id?: string
+          is_read?: boolean
+          message?: string
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       pickup_points: {
         Row: {
           address: string | null
@@ -220,6 +253,36 @@ export type Database = {
         }
         Relationships: []
       }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       ratings: {
         Row: {
           booking_id: string
@@ -271,6 +334,7 @@ export type Database = {
           distance_km: number | null
           driver_id: string
           id: string
+          instant_approval: boolean | null
           is_chatty: boolean | null
           is_music_allowed: boolean | null
           is_pet_friendly: boolean | null
@@ -292,6 +356,7 @@ export type Database = {
           distance_km?: number | null
           driver_id: string
           id?: string
+          instant_approval?: boolean | null
           is_chatty?: boolean | null
           is_music_allowed?: boolean | null
           is_pet_friendly?: boolean | null
@@ -313,6 +378,7 @@ export type Database = {
           distance_km?: number | null
           driver_id?: string
           id?: string
+          instant_approval?: boolean | null
           is_chatty?: boolean | null
           is_music_allowed?: boolean | null
           is_pet_friendly?: boolean | null
@@ -334,6 +400,141 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      saved_searches: {
+        Row: {
+          created_at: string
+          destination: string
+          id: string
+          name: string | null
+          notify_enabled: boolean | null
+          origin: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          destination: string
+          id?: string
+          name?: string | null
+          notify_enabled?: boolean | null
+          origin: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          destination?: string
+          id?: string
+          name?: string | null
+          notify_enabled?: boolean | null
+          origin?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      sos_alerts: {
+        Row: {
+          alert_type: string
+          booking_id: string | null
+          created_at: string
+          id: string
+          latitude: number | null
+          location_text: string | null
+          longitude: number | null
+          resolved_at: string | null
+          ride_id: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          alert_type: string
+          booking_id?: string | null
+          created_at?: string
+          id?: string
+          latitude?: number | null
+          location_text?: string | null
+          longitude?: number | null
+          resolved_at?: string | null
+          ride_id?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          alert_type?: string
+          booking_id?: string | null
+          created_at?: string
+          id?: string
+          latitude?: number | null
+          location_text?: string | null
+          longitude?: number | null
+          resolved_at?: string | null
+          ride_id?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sos_alerts_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sos_alerts_ride_id_fkey"
+            columns: ["ride_id"]
+            isOneToOne: false
+            referencedRelation: "rides"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trusted_contacts: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          phone: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          phone: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          phone?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
       }
       verification_documents: {
         Row: {
@@ -397,8 +598,37 @@ export type Database = {
         Args: { p_booking_id: string; p_user_id: string }
         Returns: boolean
       }
+      complete_ride: {
+        Args: { p_driver_id: string; p_ride_id: string }
+        Returns: boolean
+      }
+      get_driver_earnings: {
+        Args: { p_driver_id: string }
+        Returns: {
+          cancelled_bookings: number
+          month_earnings: number
+          today_earnings: number
+          total_bookings: number
+          total_earnings: number
+          total_rides: number
+          total_seats_sold: number
+          week_earnings: number
+        }[]
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      start_ride: {
+        Args: { p_driver_id: string; p_ride_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
+      app_role: "admin" | "moderator" | "user"
       booking_status: "pending" | "confirmed" | "cancelled"
       payment_status: "pending" | "completed" | "failed" | "refunded"
       subscription_tier: "free" | "premium"
@@ -530,6 +760,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ["admin", "moderator", "user"],
       booking_status: ["pending", "confirmed", "cancelled"],
       payment_status: ["pending", "completed", "failed", "refunded"],
       subscription_tier: ["free", "premium"],
