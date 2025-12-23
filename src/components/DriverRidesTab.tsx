@@ -138,21 +138,7 @@ export default function DriverRidesTab() {
   };
 
   const fetchEarnings = async () => {
-    if (!user) return;
-    
-    try {
-      const { data, error } = await supabase
-        .from('driver_earnings')
-        .select('*')
-        .eq('driver_id', user.id)
-        .maybeSingle();
-      
-      if (error) throw error;
-      setEarnings(data);
-    } catch (error) {
-      // Non-critical - earnings are for display only, log for debugging
-      console.error('Error fetching earnings (non-critical):', error);
-    }
+    // Earnings view not yet implemented - skip for now
   };
 
   const hasRated = (bookingId: string) => {
@@ -186,13 +172,36 @@ export default function DriverRidesTab() {
 
   const handleCancelBooking = async (bookingId: string) => {
     try {
-      await retryAsync(async () => {
-        // Use database function for atomic cancellation with seat restoration
-        const { error } = await supabase.rpc('cancel_booking', {
-          p_booking_id: bookingId,
-        });
+      // Find the booking to get ride_id and seats
+      const booking = rides
+        .flatMap(r => r.bookings)
+        .find(b => b.id === bookingId);
+      
+      if (!booking) {
+        throw new Error('Booking not found');
+      }
 
-        if (error) throw error;
+      const ride = rides.find(r => r.bookings.some(b => b.id === bookingId));
+      if (!ride) {
+        throw new Error('Ride not found');
+      }
+
+      await retryAsync(async () => {
+        // Cancel the booking
+        const { error: bookingError } = await supabase
+          .from('bookings')
+          .update({ status: 'cancelled' })
+          .eq('id', bookingId);
+
+        if (bookingError) throw bookingError;
+
+        // Restore seats to the ride
+        const { error: rideError } = await supabase
+          .from('rides')
+          .update({ seats_available: ride.seats_available + booking.seats_booked })
+          .eq('id', ride.id);
+
+        if (rideError) throw rideError;
       }, {
         maxRetries: 1,
         retryDelay: 1000,

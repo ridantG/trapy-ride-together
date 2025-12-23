@@ -189,17 +189,45 @@ export default function RideDetails() {
       await retryAsync(async () => {
         const { totalPrice, platformFee } = calculateTotalPrice(ride.price_per_seat, seatsToBook);
 
-        // Use database function for atomic booking with row-level locking
-        const { data, error } = await supabase.rpc('book_ride_seats', {
-          p_ride_id: ride.id,
-          p_passenger_id: user.id,
-          p_seats_requested: seatsToBook,
-          p_total_price: totalPrice,
-          p_platform_fee: platformFee,
-          p_pickup_point_id: selectedPickupPoint || null,
-        });
+        // First check if seats are still available
+        const { data: currentRide, error: fetchError } = await supabase
+          .from('rides')
+          .select('seats_available, status')
+          .eq('id', ride.id)
+          .single();
 
-        if (error) throw error;
+        if (fetchError) throw fetchError;
+        
+        if (!currentRide || currentRide.status !== 'active') {
+          throw new Error('This ride is no longer available');
+        }
+
+        if (currentRide.seats_available < seatsToBook) {
+          throw new Error(`Only ${currentRide.seats_available} seats available`);
+        }
+
+        // Create booking
+        const { error: bookingError } = await supabase
+          .from('bookings')
+          .insert({
+            ride_id: ride.id,
+            passenger_id: user.id,
+            seats_booked: seatsToBook,
+            total_price: totalPrice,
+            platform_fee: platformFee,
+            pickup_point_id: selectedPickupPoint || null,
+            status: 'pending',
+          });
+
+        if (bookingError) throw bookingError;
+
+        // Decrement seats
+        const { error: updateError } = await supabase
+          .from('rides')
+          .update({ seats_available: currentRide.seats_available - seatsToBook })
+          .eq('id', ride.id);
+
+        if (updateError) throw updateError;
       }, {
         maxRetries: 1,
         retryDelay: 1000,
@@ -208,7 +236,7 @@ export default function RideDetails() {
       handleSuccess('Booking Successful!', `You have booked ${seatsToBook} seat(s).`);
       navigate('/dashboard');
     } catch (error: any) {
-      handleError(error, 'Failed to book ride. Please try again.');
+      handleError(error, error.message || 'Failed to book ride. Please try again.');
     } finally {
       setBooking(false);
     }
