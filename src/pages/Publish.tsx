@@ -54,6 +54,7 @@ export default function Publish() {
   const [musicAllowed, setMusicAllowed] = useState(true);
   const [chatty, setChatty] = useState<'quiet' | 'moderate' | 'chatty'>('moderate');
   const [womenOnly, setWomenOnly] = useState(false);
+  const [instantApproval, setInstantApproval] = useState(false);
   const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
 
   const [fromOpen, setFromOpen] = useState(false);
@@ -144,6 +145,7 @@ export default function Publish() {
           is_music_allowed: musicAllowed,
           is_chatty: chatty !== 'quiet',
           max_two_back_seat: maxTwoInBack,
+          instant_approval: instantApproval,
           status: 'active',
         }).select().single();
 
@@ -535,6 +537,14 @@ export default function Publish() {
                       <Switch checked={womenOnly} onCheckedChange={setWomenOnly} />
                     </div>
                   )}
+
+                  <div className="flex items-center justify-between p-4 bg-emerald-50 dark:bg-emerald-950/20 rounded-xl border border-emerald-200 dark:border-emerald-800">
+                    <div>
+                      <p className="font-medium text-emerald-700 dark:text-emerald-300">Instant Approval ⚡</p>
+                      <p className="text-sm text-emerald-600 dark:text-emerald-400">Auto-confirm bookings without review</p>
+                    </div>
+                    <Switch checked={instantApproval} onCheckedChange={setInstantApproval} />
+                  </div>
 
                   <div className="flex items-center justify-between p-4 bg-muted rounded-xl">
                     <div className="flex items-center gap-3">
