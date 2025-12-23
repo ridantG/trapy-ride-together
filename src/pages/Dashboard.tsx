@@ -110,12 +110,36 @@ export default function Dashboard() {
 
     setCancellingBooking(bookingId);
     try {
-      await retryAsync(async () => {
-        const { error } = await supabase.rpc('cancel_booking', {
-          p_booking_id: bookingId,
-        });
+      // Find the booking to get seats_booked and ride_id
+      const booking = bookings.find(b => b.id === bookingId);
+      if (!booking || !booking.rides) {
+        throw new Error('Booking not found');
+      }
 
-        if (error) throw error;
+      await retryAsync(async () => {
+        // Cancel the booking
+        const { error: bookingError } = await supabase
+          .from('bookings')
+          .update({ status: 'cancelled' })
+          .eq('id', bookingId);
+
+        if (bookingError) throw bookingError;
+
+        // Restore seats - we need to fetch current seats first
+        const { data: rideData, error: fetchError } = await supabase
+          .from('rides')
+          .select('seats_available')
+          .eq('id', booking.rides!.id)
+          .single();
+
+        if (fetchError) throw fetchError;
+
+        const { error: rideError } = await supabase
+          .from('rides')
+          .update({ seats_available: (rideData?.seats_available || 0) + booking.seats_booked })
+          .eq('id', booking.rides!.id);
+
+        if (rideError) throw rideError;
       }, {
         maxRetries: 1,
         retryDelay: 1000,

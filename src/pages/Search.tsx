@@ -133,7 +133,7 @@ export default function Search() {
       if (ride.price_per_seat < priceRange[0] || ride.price_per_seat > priceRange[1]) return false;
       if (womenOnly && !ride.is_women_only) return false;
       if (petFriendly && !ride.is_pet_friendly) return false;
-      if (instantApproval && !ride.instant_approval) return false;
+      // Note: instant_approval feature not yet implemented in database
       if (!isInTimeSlot(ride.departure_time, departureTime)) return false;
       return true;
     })

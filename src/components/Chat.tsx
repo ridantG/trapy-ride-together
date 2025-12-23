@@ -13,14 +13,7 @@ interface Message {
   sender_id: string;
   content: string;
   created_at: string;
-  is_read: boolean;
-  read_at: string | null;
-}
-
-interface TypingIndicator {
-  booking_id: string;
-  user_id: string;
-  last_typed_at: string;
+  is_read: boolean | null;
 }
 
 interface ChatProps {
@@ -38,10 +31,8 @@ export default function Chat({ bookingId, otherUserId, otherUserName, onClose }:
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [isTyping, setIsTyping] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     fetchMessages();
@@ -81,41 +72,10 @@ export default function Chat({ bookingId, otherUserId, otherUserName, onClose }:
       )
       .subscribe();
 
-    // Subscribe to typing indicators
-    const typingChannel = supabase
-      .channel(`typing-${bookingId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'typing_indicators',
-          filter: `booking_id=eq.${bookingId}`,
-        },
-        (payload) => {
-          // Check if the typing indicator is from the other user (not ourselves)
-          const typingUserId = payload.new?.user_id || payload.old?.user_id;
-          if (typingUserId && typingUserId === otherUserId && typingUserId !== user?.id) {
-            setIsTyping(true);
-            if (typingTimeoutRef.current) {
-              clearTimeout(typingTimeoutRef.current);
-            }
-            typingTimeoutRef.current = setTimeout(() => {
-              setIsTyping(false);
-            }, 3000);
-          }
-        }
-      )
-      .subscribe();
-
     return () => {
       supabase.removeChannel(messagesChannel);
-      supabase.removeChannel(typingChannel);
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
     };
-  }, [bookingId, otherUserId, user]);
+  }, [bookingId, user]);
 
   useEffect(() => {
     scrollToBottom();
@@ -169,27 +129,16 @@ export default function Chat({ bookingId, otherUserId, otherUserName, onClose }:
   const markMessagesAsRead = async () => {
     if (!user) return;
     try {
-      await supabase.rpc('mark_messages_read', {
-        p_booking_id: bookingId,
-        p_user_id: user.id,
-      });
+      // Update messages to mark as read
+      await supabase
+        .from('messages')
+        .update({ is_read: true })
+        .eq('booking_id', bookingId)
+        .neq('sender_id', user.id)
+        .eq('is_read', false);
     } catch (error) {
       // Non-critical - marking messages as read is a background operation
       console.error('Error marking messages as read (non-critical):', error);
-    }
-  };
-
-  const updateTypingIndicator = async () => {
-    if (!user) return;
-    try {
-      await supabase.from('typing_indicators').upsert({
-        booking_id: bookingId,
-        user_id: user.id,
-        last_typed_at: new Date().toISOString(),
-      });
-    } catch (error) {
-      // Non-critical - typing indicators are for UX only, doesn't affect functionality
-      console.error('Error updating typing indicator (non-critical):', error);
     }
   };
 
@@ -228,7 +177,6 @@ export default function Chat({ bookingId, otherUserId, otherUserName, onClose }:
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setNewMessage(e.target.value);
-    updateTypingIndicator();
   };
 
   return (
@@ -238,9 +186,7 @@ export default function Chat({ bookingId, otherUserId, otherUserName, onClose }:
         <div className="flex items-center justify-between p-4 border-b border-border">
           <div>
             <h3 className="font-semibold">Chat with {otherUserName}</h3>
-            <p className="text-xs text-muted-foreground">
-              {isTyping ? 'Typing...' : 'Booking conversation'}
-            </p>
+            <p className="text-xs text-muted-foreground">Booking conversation</p>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="w-5 h-5" />
