@@ -378,7 +378,25 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      book_ride_atomic: {
+        Args: {
+          p_passenger_id: string
+          p_pickup_point_id?: string
+          p_platform_fee: number
+          p_ride_id: string
+          p_seats_requested: number
+          p_total_price: number
+        }
+        Returns: string
+      }
+      can_access_booking_chat: {
+        Args: { p_booking_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      cancel_booking_atomic: {
+        Args: { p_booking_id: string; p_user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       booking_status: "pending" | "confirmed" | "cancelled"

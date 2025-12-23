@@ -171,37 +171,17 @@ export default function DriverRidesTab() {
   };
 
   const handleCancelBooking = async (bookingId: string) => {
+    if (!user) return;
+
     try {
-      // Find the booking to get ride_id and seats
-      const booking = rides
-        .flatMap(r => r.bookings)
-        .find(b => b.id === bookingId);
-      
-      if (!booking) {
-        throw new Error('Booking not found');
-      }
-
-      const ride = rides.find(r => r.bookings.some(b => b.id === bookingId));
-      if (!ride) {
-        throw new Error('Ride not found');
-      }
-
       await retryAsync(async () => {
-        // Cancel the booking
-        const { error: bookingError } = await supabase
-          .from('bookings')
-          .update({ status: 'cancelled' })
-          .eq('id', bookingId);
+        // Use atomic cancellation function
+        const { error } = await supabase.rpc('cancel_booking_atomic', {
+          p_booking_id: bookingId,
+          p_user_id: user.id,
+        });
 
-        if (bookingError) throw bookingError;
-
-        // Restore seats to the ride
-        const { error: rideError } = await supabase
-          .from('rides')
-          .update({ seats_available: ride.seats_available + booking.seats_booked })
-          .eq('id', ride.id);
-
-        if (rideError) throw rideError;
+        if (error) throw error;
       }, {
         maxRetries: 1,
         retryDelay: 1000,
@@ -210,7 +190,7 @@ export default function DriverRidesTab() {
       handleSuccess('Booking Cancelled', 'Seats have been restored.');
       fetchDriverRides();
     } catch (error: any) {
-      handleError(error, 'Failed to cancel booking');
+      handleError(error, error.message || 'Failed to cancel booking');
     }
   };
 

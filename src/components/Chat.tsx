@@ -32,11 +32,44 @@ export default function Chat({ bookingId, otherUserId, otherUserName, onClose }:
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [hasMore, setHasMore] = useState(false);
+  const [authorized, setAuthorized] = useState<boolean | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetchMessages();
-    markMessagesAsRead();
+    // First verify user has access to this chat
+    const verifyAccess = async () => {
+      if (!user) {
+        setAuthorized(false);
+        setLoading(false);
+        return;
+      }
+      
+      try {
+        const { data, error } = await supabase.rpc('can_access_booking_chat', {
+          p_booking_id: bookingId,
+          p_user_id: user.id,
+        });
+        
+        if (error) throw error;
+        
+        if (!data) {
+          setAuthorized(false);
+          setLoading(false);
+          handleError(new Error('Unauthorized'), 'You are not authorized to access this chat');
+          return;
+        }
+        
+        setAuthorized(true);
+        fetchMessages();
+        markMessagesAsRead();
+      } catch (error) {
+        handleError(error, 'Failed to verify chat access');
+        setAuthorized(false);
+        setLoading(false);
+      }
+    };
+    
+    verifyAccess();
     
     // Subscribe to realtime messages
     const messagesChannel = supabase
@@ -195,7 +228,11 @@ export default function Chat({ bookingId, otherUserId, otherUserName, onClose }:
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {loading ? (
+          {authorized === false ? (
+            <div className="flex items-center justify-center h-full text-destructive">
+              <p>You are not authorized to access this chat</p>
+            </div>
+          ) : loading ? (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
             </div>
@@ -260,8 +297,9 @@ export default function Chat({ bookingId, otherUserId, otherUserName, onClose }:
               onChange={handleInputChange}
               onKeyPress={handleKeyPress}
               className="flex-1"
+              disabled={authorized === false}
             />
-            <Button onClick={handleSend} disabled={sending || !newMessage.trim()}>
+            <Button onClick={handleSend} disabled={sending || !newMessage.trim() || authorized === false}>
               {sending ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
