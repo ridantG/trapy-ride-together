@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/hooks/useAuth';
 import SafetyMenu from './SafetyMenu';
+import NotificationBell from './NotificationBell';
 
 export default function Navbar() {
   const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -64,6 +65,9 @@ export default function Navbar() {
                 <Shield className="w-5 h-5" />
                 <span className="absolute -top-1 -right-1 w-2 h-2 bg-emerald rounded-full animate-pulse-soft" />
               </Button>
+
+              {/* Notifications - for logged in users */}
+              {user && <NotificationBell />}
 
               {/* Messages Button - for logged in users */}
               {user && (

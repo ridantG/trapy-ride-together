@@ -14,6 +14,7 @@ import { toast } from '@/hooks/use-toast';
 import Chat from '@/components/Chat';
 import RatingModal from '@/components/RatingModal';
 import DriverRidesTab from '@/components/DriverRidesTab';
+import SavedSearches from '@/components/SavedSearches';
 import { BookingCardSkeleton, ProfileHeaderSkeleton } from '@/components/skeletons';
 import { retryAsync, handleError, handleSuccess } from '@/lib/errorHandling';
 
@@ -400,6 +401,11 @@ export default function Dashboard() {
             )}
           </TabsContent>
         </Tabs>
+
+        {/* Saved Searches */}
+        <div className="bg-card border border-border rounded-2xl p-4 mb-6">
+          <SavedSearches />
+        </div>
 
         {/* Quick Links */}
         <div className="bg-card border border-border rounded-2xl divide-y divide-border">

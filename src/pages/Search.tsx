@@ -53,16 +53,24 @@ export default function Search() {
   const [rides, setRides] = useState<RideWithDriver[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const PAGE_SIZE = 10;
 
   useEffect(() => {
-    fetchRides();
+    setPage(1);
+    setRides([]);
+    fetchRides(1, true);
   }, [searchParams, profile]);
 
-  const fetchRides = async () => {
-    setLoading(true);
+  const fetchRides = async (pageNum: number = 1, reset: boolean = false) => {
+    if (reset) setLoading(true);
     setError(null);
     try {
       await retryAsync(async () => {
+        const from = (pageNum - 1) * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+
         let query = supabase
           .from('rides')
           .select(`
@@ -79,7 +87,8 @@ export default function Search() {
           `)
           .eq('status', 'active')
           .gt('seats_available', 0)
-          .gte('departure_time', new Date().toISOString());
+          .gte('departure_time', new Date().toISOString())
+          .range(from, to);
 
         // Filter by origin/destination if provided
         if (searchParams.from) {
@@ -99,7 +108,13 @@ export default function Search() {
           filteredData = filteredData.filter(ride => !ride.is_women_only);
         }
 
-        setRides(filteredData);
+        if (reset) {
+          setRides(filteredData);
+        } else {
+          setRides(prev => [...prev, ...filteredData]);
+        }
+        
+        setHasMore(filteredData.length === PAGE_SIZE);
       }, {
         maxRetries: 2,
         retryDelay: 1000,
@@ -110,6 +125,12 @@ export default function Search() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadMore = () => {
+    const nextPage = page + 1;
+    setPage(nextPage);
+    fetchRides(nextPage);
   };
 
   const timeSlots = [
@@ -319,14 +340,23 @@ export default function Search() {
               <div className="bg-card border border-destructive/50 rounded-xl p-12 text-center">
                 <p className="text-destructive font-medium mb-2">Search Failed</p>
                 <p className="text-muted-foreground mb-4">{error}</p>
-                <Button variant="outline" onClick={fetchRides}>
+                <Button variant="outline" onClick={() => fetchRides(1, true)}>
                   Try Again
                 </Button>
               </div>
             ) : filteredRides.length > 0 ? (
-              filteredRides.map((ride) => (
-                <RideCard key={ride.id} ride={ride} />
-              ))
+              <>
+                {filteredRides.map((ride) => (
+                  <RideCard key={ride.id} ride={ride} />
+                ))}
+                {hasMore && !loading && (
+                  <div className="text-center pt-4">
+                    <Button variant="outline" onClick={loadMore}>
+                      Load More Rides
+                    </Button>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="bg-card border border-border rounded-xl p-12 text-center">
                 <Car className="w-12 h-12 text-muted-foreground mx-auto mb-4" />

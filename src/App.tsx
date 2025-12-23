@@ -19,6 +19,7 @@ import Dashboard from "./pages/Dashboard";
 import TrapyPass from "./pages/TrapyPass";
 import Verification from "./pages/Verification";
 import Messages from "./pages/Messages";
+import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -53,6 +54,7 @@ const App = () => (
                 <Route path="/trapy-pass" element={<TrapyPass />} />
                 <Route path="/verification" element={<Verification />} />
                 <Route path="/messages" element={<Messages />} />
+                <Route path="/admin" element={<Admin />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>

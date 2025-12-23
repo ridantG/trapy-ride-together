@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   Car, Calendar, MapPin, Users, Check, X, 
-  MessageCircle, Loader2, ChevronDown, ChevronUp, Star, Edit, XCircle, IndianRupee
+  MessageCircle, Loader2, ChevronDown, ChevronUp, Star, Edit, XCircle, IndianRupee,
+  Play, CheckCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +13,7 @@ import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import Chat from './Chat';
 import RatingModal from './RatingModal';
+import DriverEarnings from './DriverEarnings';
 import { retryAsync, handleError, handleSuccess } from '@/lib/errorHandling';
 
 interface Booking {
@@ -194,6 +196,36 @@ export default function DriverRidesTab() {
     }
   };
 
+  const handleStartRide = async (rideId: string) => {
+    if (!user) return;
+    try {
+      const { error } = await supabase.rpc('start_ride', {
+        p_ride_id: rideId,
+        p_driver_id: user.id
+      });
+      if (error) throw error;
+      handleSuccess('Ride Started!', 'Passengers have been notified.');
+      fetchDriverRides();
+    } catch (error: any) {
+      handleError(error, error.message || 'Failed to start ride');
+    }
+  };
+
+  const handleCompleteRide = async (rideId: string) => {
+    if (!user) return;
+    try {
+      const { error } = await supabase.rpc('complete_ride', {
+        p_ride_id: rideId,
+        p_driver_id: user.id
+      });
+      if (error) throw error;
+      handleSuccess('Ride Completed!', 'Thank you for using Trapy.');
+      fetchDriverRides();
+    } catch (error: any) {
+      handleError(error, error.message || 'Failed to complete ride');
+    }
+  };
+
   const handleCancelRide = async (rideId: string) => {
     if (!window.confirm('Are you sure you want to cancel this ride? All bookings will be cancelled.')) {
       return;
@@ -254,53 +286,19 @@ export default function DriverRidesTab() {
 
   return (
     <div className="space-y-4">
-      {/* Earnings Summary Card */}
-      {earnings && (
-        <div className="bg-card border border-border rounded-xl p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold flex items-center gap-2">
-              <IndianRupee className="w-5 h-5" />
-              Your Earnings
-            </h3>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowEarnings(!showEarnings)}
-            >
-              {showEarnings ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </Button>
-          </div>
-          {showEarnings && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Earnings</p>
-                <p className="text-2xl font-bold text-emerald">₹{earnings.total_earnings || 0}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total Rides</p>
-                <p className="text-2xl font-bold">{earnings.total_rides || 0}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Bookings</p>
-                <p className="text-2xl font-bold">{earnings.total_bookings || 0}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Seats Sold</p>
-                <p className="text-2xl font-bold">{earnings.total_seats_sold || 0}</p>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Driver Earnings Dashboard */}
+      <DriverEarnings />
 
       {rides.map((ride) => {
         const isPast = new Date(ride.departure_time) < now;
         const activeBookings = ride.bookings.filter(b => b.status !== 'cancelled');
         const hasBookings = activeBookings.length > 0;
         const canEdit = !isPast && ride.status === 'active';
+        const canStart = ride.status === 'active' && !isPast && hasBookings;
+        const canComplete = ride.status === 'started';
 
         return (
-          <div key={ride.id} className={`bg-card border border-border rounded-xl overflow-hidden ${isPast ? 'opacity-70' : ''}`}>
+          <div key={ride.id} className={`bg-card border border-border rounded-xl overflow-hidden ${isPast && ride.status !== 'started' ? 'opacity-70' : ''}`}>
             {/* Ride Header */}
             <div className="p-4">
               <div 
@@ -318,6 +316,12 @@ export default function DriverRidesTab() {
                   </span>
                   {ride.status === 'cancelled' && (
                     <Badge variant="destructive">Cancelled</Badge>
+                  )}
+                  {ride.status === 'started' && (
+                    <Badge className="bg-emerald-100 text-emerald-700 animate-pulse">In Progress</Badge>
+                  )}
+                  {ride.status === 'completed' && (
+                    <Badge className="bg-primary/10 text-primary">Completed</Badge>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
@@ -355,31 +359,59 @@ export default function DriverRidesTab() {
               </div>
 
               {/* Ride Management Buttons */}
-              {canEdit && (
-                <div className="flex gap-2 mt-3 pt-3 border-t border-border">
+              <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-border">
+                {canStart && (
                   <Button
-                    variant="outline"
                     size="sm"
-                    className="flex-1"
-                    onClick={() => navigate(`/publish?edit=${ride.id}`)}
-                  >
-                    <Edit className="w-4 h-4 mr-2" />
-                    Edit Ride
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 text-destructive hover:text-destructive"
+                    className="flex-1 bg-emerald hover:bg-emerald/90"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleCancelRide(ride.id);
+                      handleStartRide(ride.id);
                     }}
                   >
-                    <XCircle className="w-4 h-4 mr-2" />
-                    Cancel Ride
+                    <Play className="w-4 h-4 mr-2" />
+                    Start Ride
                   </Button>
-                </div>
-              )}
+                )}
+                {canComplete && (
+                  <Button
+                    size="sm"
+                    className="flex-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCompleteRide(ride.id);
+                    }}
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Complete Ride
+                  </Button>
+                )}
+                {canEdit && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => navigate(`/publish?edit=${ride.id}`)}
+                    >
+                      <Edit className="w-4 h-4 mr-2" />
+                      Edit
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 text-destructive hover:text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCancelRide(ride.id);
+                      }}
+                    >
+                      <XCircle className="w-4 h-4 mr-2" />
+                      Cancel
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Expanded Bookings */}
