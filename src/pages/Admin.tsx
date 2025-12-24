@@ -155,41 +155,16 @@ export default function Admin() {
   ) => {
     setProcessingDoc(docId);
     try {
-      // Update document status
-      const { error: docError } = await supabase
-        .from('verification_documents')
-        .update({ 
-          status: action, 
-          reviewed_at: new Date().toISOString() 
-        })
-        .eq('id', docId);
+      // Use secure server-side RPC function for admin document review
+      // This enforces admin authorization on the server and atomically updates both tables
+      const { data, error } = await supabase.rpc('admin_review_document', {
+        p_doc_id: docId,
+        p_action: action,
+        p_user_id: userId,
+        p_doc_type: docType,
+      });
 
-      if (docError) throw docError;
-
-      // Update user profile verification status
-      if (action === 'verified') {
-        const updateField = docType === 'aadhaar' 
-          ? { is_aadhaar_verified: true, aadhaar_status: 'verified' as const }
-          : { is_dl_verified: true, dl_status: 'verified' as const };
-
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update(updateField)
-          .eq('id', userId);
-
-        if (profileError) throw profileError;
-      } else {
-        const updateField = docType === 'aadhaar' 
-          ? { aadhaar_status: 'rejected' as const }
-          : { dl_status: 'rejected' as const };
-
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update(updateField)
-          .eq('id', userId);
-
-        if (profileError) throw profileError;
-      }
+      if (error) throw error;
 
       toast({
         title: action === 'verified' ? 'Document Verified' : 'Document Rejected',
@@ -206,6 +181,42 @@ export default function Admin() {
       });
     } finally {
       setProcessingDoc(null);
+    }
+  };
+
+  // Get signed URL for viewing documents securely
+  const getSecureDocumentUrl = async (docId: string): Promise<string | null> => {
+    try {
+      // Get the file path from secure RPC function
+      const { data: filePath, error } = await supabase.rpc('get_document_signed_url', {
+        p_doc_id: docId,
+      });
+
+      if (error) throw error;
+      if (!filePath) return null;
+
+      // Generate signed URL client-side (valid for 1 hour)
+      const { data: signedUrl } = await supabase.storage
+        .from('documents')
+        .createSignedUrl(filePath, 3600);
+
+      return signedUrl?.signedUrl || null;
+    } catch (error) {
+      console.error('Error getting document URL:', error);
+      return null;
+    }
+  };
+
+  const handleViewDocument = async (docId: string) => {
+    const url = await getSecureDocumentUrl(docId);
+    if (url) {
+      window.open(url, '_blank');
+    } else {
+      toast({
+        title: 'Error',
+        description: 'Failed to load document. Please try again.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -343,7 +354,7 @@ export default function Admin() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => window.open(doc.document_url, '_blank')}
+                            onClick={() => handleViewDocument(doc.id)}
                           >
                             <Eye className="w-4 h-4 mr-1" />
                             View
