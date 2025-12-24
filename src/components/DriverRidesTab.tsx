@@ -1,19 +1,19 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { 
   Car, Calendar, MapPin, Users, Check, X, 
-  MessageCircle, Loader2, ChevronDown, ChevronUp, Star, Edit, XCircle, IndianRupee,
+  MessageCircle, Loader2, ChevronDown, ChevronUp, Star, Edit, XCircle,
   Play, CheckCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import Chat from './Chat';
 import RatingModal from './RatingModal';
 import DriverEarnings from './DriverEarnings';
+import RideEditModal from './RideEditModal';
 import { retryAsync, handleError, handleSuccess } from '@/lib/errorHandling';
 
 interface Booking {
@@ -42,6 +42,13 @@ interface DriverRide {
   seats_available: number;
   price_per_seat: number;
   status: string | null;
+  car_model: string | null;
+  car_number: string | null;
+  is_women_only: boolean | null;
+  is_pet_friendly: boolean | null;
+  is_smoking_allowed: boolean | null;
+  is_music_allowed: boolean | null;
+  instant_approval: boolean | null;
   bookings: Booking[];
 }
 
@@ -52,7 +59,6 @@ interface Rating {
 
 export default function DriverRidesTab() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [rides, setRides] = useState<DriverRide[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedRide, setExpandedRide] = useState<string | null>(null);
@@ -61,14 +67,12 @@ export default function DriverRidesTab() {
   const [activeChatRide, setActiveChatRide] = useState<DriverRide | null>(null);
   const [ratingBooking, setRatingBooking] = useState<{ booking: Booking; ride: DriverRide } | null>(null);
   const [existingRatings, setExistingRatings] = useState<Rating[]>([]);
-  const [showEarnings, setShowEarnings] = useState(false);
-  const [earnings, setEarnings] = useState<any>(null);
+  const [editingRide, setEditingRide] = useState<DriverRide | null>(null);
 
   useEffect(() => {
     if (user) {
       fetchDriverRides();
       fetchExistingRatings();
-      fetchEarnings();
     }
   }, [user]);
 
@@ -87,6 +91,13 @@ export default function DriverRidesTab() {
             seats_available,
             price_per_seat,
             status,
+            car_model,
+            car_number,
+            is_women_only,
+            is_pet_friendly,
+            is_smoking_allowed,
+            is_music_allowed,
+            instant_approval,
             bookings (
               id,
               seats_booked,
@@ -139,10 +150,6 @@ export default function DriverRidesTab() {
     }
   };
 
-  const fetchEarnings = async () => {
-    // Earnings view not yet implemented - skip for now
-  };
-
   const hasRated = (bookingId: string) => {
     return existingRatings.some(r => r.booking_id === bookingId);
   };
@@ -164,7 +171,6 @@ export default function DriverRidesTab() {
 
       handleSuccess('Booking Confirmed', 'The passenger has been notified.');
       fetchDriverRides();
-      fetchEarnings();
     } catch (error) {
       handleError(error, 'Failed to confirm booking');
     } finally {
@@ -392,7 +398,10 @@ export default function DriverRidesTab() {
                       variant="outline"
                       size="sm"
                       className="flex-1"
-                      onClick={() => navigate(`/publish?edit=${ride.id}`)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingRide(ride);
+                      }}
                     >
                       <Edit className="w-4 h-4 mr-2" />
                       Edit
@@ -538,6 +547,16 @@ export default function DriverRidesTab() {
             setRatingBooking(null);
             fetchExistingRatings();
           }}
+        />
+      )}
+
+      {/* Ride Edit Modal */}
+      {editingRide && (
+        <RideEditModal
+          ride={editingRide}
+          open={!!editingRide}
+          onOpenChange={(open) => !open && setEditingRide(null)}
+          onSave={fetchDriverRides}
         />
       )}
     </div>

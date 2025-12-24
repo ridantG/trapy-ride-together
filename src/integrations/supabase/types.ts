@@ -197,6 +197,8 @@ export type Database = {
           is_dl_verified: boolean | null
           is_phone_verified: boolean | null
           phone: string | null
+          phone_otp_code: string | null
+          phone_otp_sent_at: string | null
           rating: number | null
           subscription_tier:
             | Database["public"]["Enums"]["subscription_tier"]
@@ -220,6 +222,8 @@ export type Database = {
           is_dl_verified?: boolean | null
           is_phone_verified?: boolean | null
           phone?: string | null
+          phone_otp_code?: string | null
+          phone_otp_sent_at?: string | null
           rating?: number | null
           subscription_tier?:
             | Database["public"]["Enums"]["subscription_tier"]
@@ -243,6 +247,8 @@ export type Database = {
           is_dl_verified?: boolean | null
           is_phone_verified?: boolean | null
           phone?: string | null
+          phone_otp_code?: string | null
+          phone_otp_sent_at?: string | null
           rating?: number | null
           subscription_tier?:
             | Database["public"]["Enums"]["subscription_tier"]

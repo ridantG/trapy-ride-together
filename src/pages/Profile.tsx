@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   User,
@@ -43,14 +43,14 @@ export default function Profile() {
   });
 
   // Update form when profile loads
-  useState(() => {
+  useEffect(() => {
     if (profile) {
       setEditForm({
         full_name: profile.full_name || '',
         phone: profile.phone || '',
       });
     }
-  });
+  }, [profile]);
 
   if (isLoading) {
     return (
