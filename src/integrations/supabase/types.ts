@@ -146,6 +146,27 @@ export type Database = {
         }
         Relationships: []
       }
+      phone_verifications: {
+        Row: {
+          expires_at: string
+          otp_code: string
+          sent_at: string
+          user_id: string
+        }
+        Insert: {
+          expires_at?: string
+          otp_code: string
+          sent_at?: string
+          user_id: string
+        }
+        Update: {
+          expires_at?: string
+          otp_code?: string
+          sent_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       pickup_points: {
         Row: {
           address: string | null
@@ -197,8 +218,6 @@ export type Database = {
           is_dl_verified: boolean | null
           is_phone_verified: boolean | null
           phone: string | null
-          phone_otp_code: string | null
-          phone_otp_sent_at: string | null
           rating: number | null
           subscription_tier:
             | Database["public"]["Enums"]["subscription_tier"]
@@ -222,8 +241,6 @@ export type Database = {
           is_dl_verified?: boolean | null
           is_phone_verified?: boolean | null
           phone?: string | null
-          phone_otp_code?: string | null
-          phone_otp_sent_at?: string | null
           rating?: number | null
           subscription_tier?:
             | Database["public"]["Enums"]["subscription_tier"]
@@ -247,8 +264,6 @@ export type Database = {
           is_dl_verified?: boolean | null
           is_phone_verified?: boolean | null
           phone?: string | null
-          phone_otp_code?: string | null
-          phone_otp_sent_at?: string | null
           rating?: number | null
           subscription_tier?:
             | Database["public"]["Enums"]["subscription_tier"]
@@ -585,17 +600,27 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      book_ride_atomic: {
-        Args: {
-          p_passenger_id: string
-          p_pickup_point_id?: string
-          p_platform_fee: number
-          p_ride_id: string
-          p_seats_requested: number
-          p_total_price: number
-        }
-        Returns: string
-      }
+      book_ride_atomic:
+        | {
+            Args: {
+              p_passenger_id: string
+              p_pickup_point_id?: string
+              p_ride_id: string
+              p_seats_requested: number
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_passenger_id: string
+              p_pickup_point_id?: string
+              p_platform_fee: number
+              p_ride_id: string
+              p_seats_requested: number
+              p_total_price: number
+            }
+            Returns: string
+          }
       can_access_booking_chat: {
         Args: { p_booking_id: string; p_user_id: string }
         Returns: boolean
@@ -628,8 +653,16 @@ export type Database = {
         }
         Returns: boolean
       }
+      send_phone_otp: {
+        Args: { p_otp_code: string; p_user_id: string }
+        Returns: boolean
+      }
       start_ride: {
         Args: { p_driver_id: string; p_ride_id: string }
+        Returns: boolean
+      }
+      verify_phone_otp: {
+        Args: { p_otp_code: string; p_user_id: string }
         Returns: boolean
       }
     }
