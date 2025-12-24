@@ -186,17 +186,21 @@ export default function Verification() {
       // Generate a random 6-digit OTP
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
       
-      // Store OTP in profile (in production, use a secure OTP service like Twilio)
-      const { error } = await supabase
+      // Update phone number on profile
+      const { error: profileError } = await supabase
         .from('profiles')
-        .update({
-          phone: phoneNumber,
-          phone_otp_code: otp,
-          phone_otp_sent_at: new Date().toISOString(),
-        })
+        .update({ phone: phoneNumber })
         .eq('id', user.id);
 
-      if (error) throw error;
+      if (profileError) throw profileError;
+
+      // Store OTP securely using SECURITY DEFINER function (not in publicly readable table)
+      const { error: otpError } = await supabase.rpc('send_phone_otp', {
+        p_user_id: user.id,
+        p_otp_code: otp,
+      });
+
+      if (otpError) throw otpError;
 
       // In production, send OTP via SMS using Twilio or similar
       // For now, we'll show the OTP in a toast (development only)
@@ -230,52 +234,26 @@ export default function Verification() {
     setVerifyingOtp(true);
 
     try {
-      // Fetch stored OTP from profile
-      const { data: profileData, error: fetchError } = await supabase
-        .from('profiles')
-        .select('phone_otp_code, phone_otp_sent_at')
-        .eq('id', user.id)
-        .single();
+      // Verify OTP using secure SECURITY DEFINER function
+      // This function checks the OTP in the secured phone_verifications table
+      // and marks the phone as verified if correct
+      const { data: verified, error: verifyError } = await supabase.rpc('verify_phone_otp', {
+        p_user_id: user.id,
+        p_otp_code: otpCode,
+      });
 
-      if (fetchError) throw fetchError;
+      if (verifyError) throw verifyError;
 
-      // Check OTP expiry (5 minutes)
-      const sentAt = new Date(profileData.phone_otp_sent_at);
-      const now = new Date();
-      const diffMinutes = (now.getTime() - sentAt.getTime()) / (1000 * 60);
-      
-      if (diffMinutes > 5) {
+      if (!verified) {
         toast({
-          title: "OTP expired",
-          description: "Please request a new OTP",
+          title: "Invalid or expired OTP",
+          description: "The OTP you entered is incorrect or has expired. Please request a new one.",
           variant: "destructive",
         });
         setOtpSent(false);
         setOtpCode('');
         return;
       }
-
-      // Verify OTP
-      if (profileData.phone_otp_code !== otpCode) {
-        toast({
-          title: "Invalid OTP",
-          description: "The OTP you entered is incorrect",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Mark phone as verified
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({
-          is_phone_verified: true,
-          phone_otp_code: null,
-          phone_otp_sent_at: null,
-        })
-        .eq('id', user.id);
-
-      if (updateError) throw updateError;
 
       toast({
         title: "Phone verified!",

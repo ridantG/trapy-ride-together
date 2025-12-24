@@ -187,15 +187,12 @@ export default function RideDetails() {
 
     try {
       await retryAsync(async () => {
-        const { totalPrice, platformFee } = calculateTotalPrice(ride.price_per_seat, seatsToBook);
-
         // Use atomic database function for race-condition-safe booking
+        // Prices are now calculated server-side for security
         const { data, error } = await supabase.rpc('book_ride_atomic', {
           p_ride_id: ride.id,
           p_passenger_id: user.id,
           p_seats_requested: seatsToBook,
-          p_total_price: totalPrice,
-          p_platform_fee: platformFee,
           p_pickup_point_id: selectedPickupPoint || null,
         });
 
