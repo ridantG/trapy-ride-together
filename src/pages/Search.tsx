@@ -29,6 +29,7 @@ interface RideWithDriver {
   is_music_allowed: boolean | null;
   is_chatty: boolean | null;
   max_two_back_seat: boolean | null;
+  instant_approval: boolean | null;
   driver_id: string;
   profiles: {
     full_name: string | null;
@@ -154,7 +155,7 @@ export default function Search() {
       if (ride.price_per_seat < priceRange[0] || ride.price_per_seat > priceRange[1]) return false;
       if (womenOnly && !ride.is_women_only) return false;
       if (petFriendly && !ride.is_pet_friendly) return false;
-      // Note: instant_approval feature not yet implemented in database
+      if (instantApproval && !(ride as any).instant_approval) return false;
       if (!isInTimeSlot(ride.departure_time, departureTime)) return false;
       return true;
     })

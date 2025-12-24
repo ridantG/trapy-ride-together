@@ -1,13 +1,27 @@
-import { useState } from 'react';
-import { Upload, FileText, CheckCircle, Clock, XCircle, Shield } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Upload, FileText, CheckCircle, Clock, XCircle, Shield, Phone, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function Verification() {
-  const { profile, user } = useAuth();
+  const { profile, user, refreshProfile } = useAuth();
   const { toast } = useToast();
   const [uploading, setUploading] = useState<string | null>(null);
+  const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
+  
+  // Phone OTP state
+  const [phoneDialogOpen, setPhoneDialogOpen] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState(profile?.phone || '');
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
 
   const documents = [
     {
@@ -63,7 +77,7 @@ export default function Verification() {
     }
   };
 
-  const handleUpload = async (documentId: string) => {
+  const handleFileSelect = async (documentId: string, file: File) => {
     if (!user) {
       toast({
         title: "Sign in required",
@@ -73,17 +87,218 @@ export default function Verification() {
       return;
     }
 
+    // Validate file
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      toast({
+        title: "File too large",
+        description: "Please upload a file smaller than 5MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload a PNG, JPG, or PDF file",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setUploading(documentId);
-    
-    // Simulate upload
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    toast({
-      title: "Document uploaded",
-      description: "Your document has been submitted for verification. This usually takes 24-48 hours.",
-    });
-    
-    setUploading(null);
+
+    try {
+      // Generate unique filename
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/${documentId}_${Date.now()}.${fileExt}`;
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: true,
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('documents')
+        .getPublicUrl(fileName);
+
+      // Save to verification_documents table
+      const { error: dbError } = await supabase
+        .from('verification_documents')
+        .insert({
+          user_id: user.id,
+          document_type: documentId,
+          document_url: urlData.publicUrl,
+          status: 'pending',
+        });
+
+      if (dbError) throw dbError;
+
+      // Update profile status
+      const statusField = documentId === 'aadhaar' ? 'aadhaar_status' : 'dl_status';
+      await supabase
+        .from('profiles')
+        .update({ [statusField]: 'pending' })
+        .eq('id', user.id);
+
+      toast({
+        title: "Document uploaded",
+        description: "Your document has been submitted for verification. This usually takes 24-48 hours.",
+      });
+
+      // Refresh profile
+      if (refreshProfile) {
+        await refreshProfile();
+      }
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      toast({
+        title: "Upload failed",
+        description: error.message || "Failed to upload document. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const handleSendOtp = async () => {
+    if (!user || !phoneNumber || phoneNumber.length < 10) {
+      toast({
+        title: "Invalid phone number",
+        description: "Please enter a valid 10-digit phone number",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSendingOtp(true);
+
+    try {
+      // Generate a random 6-digit OTP
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      
+      // Store OTP in profile (in production, use a secure OTP service like Twilio)
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          phone: phoneNumber,
+          phone_otp_code: otp,
+          phone_otp_sent_at: new Date().toISOString(),
+        })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      // In production, send OTP via SMS using Twilio or similar
+      // For now, we'll show the OTP in a toast (development only)
+      toast({
+        title: "OTP Sent",
+        description: `Demo mode: Your OTP is ${otp}. In production, this would be sent via SMS.`,
+      });
+
+      setOtpSent(true);
+    } catch (error: any) {
+      toast({
+        title: "Failed to send OTP",
+        description: error.message || "Please try again later",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!user || otpCode.length !== 6) {
+      toast({
+        title: "Invalid OTP",
+        description: "Please enter the 6-digit OTP",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setVerifyingOtp(true);
+
+    try {
+      // Fetch stored OTP from profile
+      const { data: profileData, error: fetchError } = await supabase
+        .from('profiles')
+        .select('phone_otp_code, phone_otp_sent_at')
+        .eq('id', user.id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Check OTP expiry (5 minutes)
+      const sentAt = new Date(profileData.phone_otp_sent_at);
+      const now = new Date();
+      const diffMinutes = (now.getTime() - sentAt.getTime()) / (1000 * 60);
+      
+      if (diffMinutes > 5) {
+        toast({
+          title: "OTP expired",
+          description: "Please request a new OTP",
+          variant: "destructive",
+        });
+        setOtpSent(false);
+        setOtpCode('');
+        return;
+      }
+
+      // Verify OTP
+      if (profileData.phone_otp_code !== otpCode) {
+        toast({
+          title: "Invalid OTP",
+          description: "The OTP you entered is incorrect",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Mark phone as verified
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({
+          is_phone_verified: true,
+          phone_otp_code: null,
+          phone_otp_sent_at: null,
+        })
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+
+      toast({
+        title: "Phone verified!",
+        description: "Your phone number has been verified successfully",
+      });
+
+      setPhoneDialogOpen(false);
+      setOtpSent(false);
+      setOtpCode('');
+
+      // Refresh profile
+      if (refreshProfile) {
+        await refreshProfile();
+      }
+    } catch (error: any) {
+      toast({
+        title: "Verification failed",
+        description: error.message || "Please try again",
+        variant: "destructive",
+      });
+    } finally {
+      setVerifyingOtp(false);
+    }
   };
 
   return (
@@ -146,20 +361,32 @@ export default function Verification() {
 
               {!doc.isVerified && (
                 <div className="mt-6">
+                  <input
+                    type="file"
+                    ref={(el) => { fileInputRefs.current[doc.id] = el; }}
+                    className="hidden"
+                    accept="image/png,image/jpeg,image/jpg,application/pdf"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        handleFileSelect(doc.id, file);
+                      }
+                    }}
+                  />
                   <div 
                     className="border-2 border-dashed border-border rounded-xl p-6 text-center hover:border-primary/50 transition-colors cursor-pointer"
-                    onClick={() => handleUpload(doc.id)}
+                    onClick={() => fileInputRefs.current[doc.id]?.click()}
                   >
                     {uploading === doc.id ? (
                       <div className="flex flex-col items-center">
-                        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-2" />
+                        <Loader2 className="w-8 h-8 animate-spin text-primary mb-2" />
                         <p className="text-sm text-muted-foreground">Uploading...</p>
                       </div>
                     ) : (
                       <>
                         <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
                         <p className="text-sm font-medium">Click to upload</p>
-                        <p className="text-xs text-muted-foreground mt-1">PNG, JPG up to 5MB</p>
+                        <p className="text-xs text-muted-foreground mt-1">PNG, JPG, PDF up to 5MB</p>
                       </>
                     )}
                   </div>
@@ -173,16 +400,18 @@ export default function Verification() {
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-start gap-4">
                 <div className="w-12 h-12 rounded-xl bg-indigo-light flex items-center justify-center flex-shrink-0">
-                  <FileText className="w-6 h-6 text-primary" />
+                  <Phone className="w-6 h-6 text-primary" />
                 </div>
                 <div>
                   <h3 className="font-semibold mb-1">Phone Number</h3>
-                  <p className="text-sm text-muted-foreground mb-3">Verify your phone for quick login</p>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    {profile?.phone ? `+91 ${profile.phone}` : 'Verify your phone for quick login'}
+                  </p>
                   {getStatusBadge(profile?.is_phone_verified ? 'verified' : 'pending', profile?.is_phone_verified || false)}
                 </div>
               </div>
               {!profile?.is_phone_verified && (
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={() => setPhoneDialogOpen(true)}>
                   Verify
                 </Button>
               )}
@@ -213,6 +442,99 @@ export default function Verification() {
           </ul>
         </div>
       </div>
+
+      {/* Phone OTP Dialog */}
+      <Dialog open={phoneDialogOpen} onOpenChange={setPhoneDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Verify Phone Number</DialogTitle>
+            <DialogDescription>
+              {otpSent 
+                ? "Enter the 6-digit code sent to your phone"
+                : "Enter your phone number to receive a verification code"
+              }
+            </DialogDescription>
+          </DialogHeader>
+          
+          {!otpSent ? (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number</Label>
+                <div className="flex gap-2">
+                  <div className="flex items-center px-3 bg-muted rounded-md border border-input">
+                    <span className="text-sm text-muted-foreground">+91</span>
+                  </div>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    placeholder="Enter 10-digit number"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    maxLength={10}
+                  />
+                </div>
+              </div>
+              <Button 
+                onClick={handleSendOtp} 
+                disabled={sendingOtp || phoneNumber.length !== 10}
+                className="w-full"
+              >
+                {sendingOtp ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  'Send OTP'
+                )}
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex justify-center">
+                <InputOTP
+                  maxLength={6}
+                  value={otpCode}
+                  onChange={setOtpCode}
+                >
+                  <InputOTPGroup>
+                    <InputOTPSlot index={0} />
+                    <InputOTPSlot index={1} />
+                    <InputOTPSlot index={2} />
+                    <InputOTPSlot index={3} />
+                    <InputOTPSlot index={4} />
+                    <InputOTPSlot index={5} />
+                  </InputOTPGroup>
+                </InputOTP>
+              </div>
+              <Button 
+                onClick={handleVerifyOtp} 
+                disabled={verifyingOtp || otpCode.length !== 6}
+                className="w-full"
+              >
+                {verifyingOtp ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Verifying...
+                  </>
+                ) : (
+                  'Verify OTP'
+                )}
+              </Button>
+              <Button 
+                variant="ghost" 
+                onClick={() => {
+                  setOtpSent(false);
+                  setOtpCode('');
+                }}
+                className="w-full"
+              >
+                Change phone number
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
