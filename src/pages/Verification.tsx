@@ -125,18 +125,14 @@ export default function Verification() {
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('documents')
-        .getPublicUrl(fileName);
-
-      // Save to verification_documents table
+      // Store the file path (not public URL) for secure signed URL generation
+      // This prevents exposure of identity documents via public URLs
       const { error: dbError } = await supabase
         .from('verification_documents')
         .insert({
           user_id: user.id,
           document_type: documentId,
-          document_url: urlData.publicUrl,
+          document_url: fileName, // Store path only, not public URL
           status: 'pending',
         });
 

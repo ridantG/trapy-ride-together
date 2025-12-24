@@ -600,6 +600,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_review_document: {
+        Args: {
+          p_action: string
+          p_doc_id: string
+          p_doc_type: string
+          p_user_id: string
+        }
+        Returns: boolean
+      }
       book_ride_atomic:
         | {
             Args: {
@@ -633,6 +642,7 @@ export type Database = {
         Args: { p_driver_id: string; p_ride_id: string }
         Returns: boolean
       }
+      get_document_signed_url: { Args: { p_doc_id: string }; Returns: string }
       get_driver_earnings: {
         Args: { p_driver_id: string }
         Returns: {
