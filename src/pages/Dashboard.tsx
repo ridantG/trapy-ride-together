@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { 
   Car, Wallet, Settings, Clock, MapPin, Star, 
   Calendar, ChevronRight, Shield, AlertTriangle,
-  Crown, Phone, CreditCard, Loader2, MessageCircle, XCircle
+  Crown, Phone, CreditCard, Loader2, MessageCircle, XCircle, Navigation
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -31,6 +31,7 @@ interface BookingWithRide {
     departure_time: string;
     price_per_seat: number;
     driver_id: string;
+    status: string | null;
     profiles: {
       full_name: string | null;
     } | null;
@@ -83,6 +84,7 @@ export default function Dashboard() {
               departure_time,
               price_per_seat,
               driver_id,
+              status,
               profiles!rides_driver_id_fkey (
                 full_name
               )
@@ -266,13 +268,21 @@ export default function Dashboard() {
                           {booking.rides ? format(new Date(booking.rides.departure_time), 'h:mm a') : ''}
                         </span>
                       </div>
-                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                      {/* Ride Status Badge */}
+                      {booking.rides?.status === 'started' ? (
+                        <span className="text-xs bg-emerald-light text-emerald px-2 py-1 rounded-full animate-pulse flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-emerald" />
+                          In Progress
+                        </span>
+                      ) : (
+                        <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                      )}
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="flex flex-col items-center">
-                        <div className="w-2 h-2 rounded-full bg-primary" />
+                        <div className={`w-2 h-2 rounded-full ${booking.rides?.status === 'started' ? 'bg-emerald' : 'bg-primary'}`} />
                         <div className="w-0.5 h-8 bg-border" />
-                        <div className="w-2 h-2 rounded-full border-2 border-primary" />
+                        <div className={`w-2 h-2 rounded-full border-2 ${booking.rides?.status === 'started' ? 'border-emerald' : 'border-primary'}`} />
                       </div>
                       <div className="flex-1">
                         <p className="font-medium text-sm">{booking.rides?.origin}</p>
@@ -284,13 +294,13 @@ export default function Dashboard() {
                       </div>
                     </div>
                   </Link>
-                  {/* Chat Button */}
+                  {/* Actions */}
                   <div className="mt-3 pt-3 border-t border-border flex justify-between items-center gap-2">
                     <p className="text-xs text-muted-foreground">
                       Driver: {booking.rides?.profiles?.full_name || 'Unknown'}
                     </p>
                     <div className="flex gap-2">
-                      {booking.status === 'pending' && booking.rides && new Date(booking.rides.departure_time) > new Date() && (
+                      {booking.status === 'pending' && booking.rides && new Date(booking.rides.departure_time) > new Date() && booking.rides?.status === 'active' && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -307,6 +317,19 @@ export default function Dashboard() {
                             <><XCircle className="w-4 h-4 mr-1" />Cancel</>
                           )}
                         </Button>
+                      )}
+                      {/* Track Ride Button - Show when ride is started */}
+                      {booking.rides?.status === 'started' && (
+                        <Link to={`/ride/${booking.rides?.id}`} onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="bg-emerald hover:bg-emerald/90"
+                          >
+                            <Navigation className="w-4 h-4 mr-1" />
+                            Track Ride
+                          </Button>
+                        </Link>
                       )}
                       <Button
                         variant="outline"
