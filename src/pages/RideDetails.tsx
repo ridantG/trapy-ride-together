@@ -1,5 +1,5 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   ArrowLeft,
   Star,
@@ -18,6 +18,7 @@ import {
   Loader2,
   Music,
 } from 'lucide-react';
+import RideTracker from '@/components/RideTracker';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -46,6 +47,7 @@ interface RideWithDriver {
   is_chatty: boolean | null;
   max_two_back_seat: boolean | null;
   driver_id: string;
+  status: string | null;
   profiles: {
     full_name: string | null;
     avatar_url: string | null;
@@ -74,14 +76,18 @@ export default function RideDetails() {
   const [seatsToBook, setSeatsToBook] = useState(1);
   const [pickupPoints, setPickupPoints] = useState<PickupPointData[]>([]);
   const [selectedPickupPoint, setSelectedPickupPoint] = useState<string | null>(null);
+  const [hasBooking, setHasBooking] = useState(false);
 
   useEffect(() => {
     if (id) {
       fetchRide();
+      if (user) {
+        checkUserBooking();
+      }
     }
-  }, [id]);
+  }, [id, user]);
 
-  const fetchRide = async () => {
+  const fetchRide = useCallback(async () => {
     try {
       await retryAsync(async () => {
         const { data, error } = await supabase
@@ -141,6 +147,29 @@ export default function RideDetails() {
     } finally {
       setLoading(false);
     }
+  }, [id, profile?.gender, navigate]);
+
+  const checkUserBooking = async () => {
+    if (!user || !id) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('id')
+        .eq('ride_id', id)
+        .eq('passenger_id', user.id)
+        .in('status', ['pending', 'confirmed'])
+        .maybeSingle();
+      
+      if (error) throw error;
+      setHasBooking(!!data);
+    } catch (error) {
+      console.error('Error checking booking:', error);
+    }
+  };
+
+  const handleStatusChange = () => {
+    fetchRide();
   };
 
   const handleBook = async () => {
@@ -436,6 +465,17 @@ export default function RideDetails() {
 
           {/* Sidebar */}
           <div className="space-y-6">
+            {/* Ride Tracker - Show for driver or booked passengers */}
+            {(ride.driver_id === user?.id || hasBooking) && ride.status !== 'completed' && (
+              <RideTracker
+                rideId={ride.id}
+                status={ride.status || 'active'}
+                origin={ride.origin}
+                destination={ride.destination}
+                isDriver={ride.driver_id === user?.id}
+                onStatusChange={handleStatusChange}
+              />
+            )}
             {/* Driver Card */}
             <div className="bg-card border border-border rounded-xl p-6">
               <div className="flex items-center gap-4 mb-4">
