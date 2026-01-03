@@ -642,6 +642,7 @@ export type Database = {
         Args: { p_driver_id: string; p_ride_id: string }
         Returns: boolean
       }
+      get_booking_driver_id: { Args: { p_booking_id: string }; Returns: string }
       get_document_signed_url: { Args: { p_doc_id: string }; Returns: string }
       get_driver_earnings: {
         Args: { p_driver_id: string }
@@ -661,6 +662,14 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_ride_driver: {
+        Args: { p_ride_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      is_ride_passenger: {
+        Args: { p_ride_id: string; p_user_id: string }
         Returns: boolean
       }
       send_phone_otp: {
