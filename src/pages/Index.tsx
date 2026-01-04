@@ -2,6 +2,7 @@ import { Shield, CreditCard, Users, Car, MapPin, Clock, Wallet, ArrowRight, Chec
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import SearchWidget from '@/components/SearchWidget';
+import FoundersSection from '@/components/FoundersSection';
 import { popularRoutes } from '@/lib/mockData';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -257,6 +258,9 @@ export default function Index() {
           </div>
         </div>
       </section>
+
+      {/* Founders Section */}
+      <FoundersSection />
 
       {/* How It Works */}
       <section className="py-20 bg-muted/50">
