@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import SearchWidget from '@/components/SearchWidget';
 import FoundersSection from '@/components/FoundersSection';
+import Footer from '@/components/Footer';
 import { popularRoutes } from '@/lib/mockData';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -418,21 +419,7 @@ export default function Index() {
       </section>
 
       {/* Footer */}
-      <footer className="py-12 bg-foreground text-background">
-        <div className="container px-4">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-                <Car className="w-6 h-6 text-primary-foreground" />
-              </div>
-              <span className="text-xl font-bold">Trapy</span>
-            </div>
-            <p className="text-muted-foreground text-sm">
-              © 2024 Trapy. Made with ❤️ in India
-            </p>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }
