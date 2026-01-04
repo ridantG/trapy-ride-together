@@ -25,8 +25,8 @@ const founders: Founder[] = [
   },
   {
     name: 'Aditiya',
-    role: 'Co-founder & UFO',
-    bio: 'The unconventional force driving innovation at Trapy. Bringing fresh perspectives and out-of-this-world ideas to the team.',
+    role: 'Co-founder & CFO',
+    bio: 'The financial strategist driving Trapy\'s growth. Ensuring sustainable business practices and smart investments for the future.',
     quote: 'Why travel alone when you can share the journey and make it memorable?',
     initials: 'A',
   },
