@@ -3,6 +3,7 @@ import { Quote } from 'lucide-react';
 interface Founder {
   name: string;
   role: string;
+  college: string;
   bio: string;
   quote: string;
   initials: string;
@@ -12,6 +13,7 @@ const founders: Founder[] = [
   {
     name: 'Ridant',
     role: 'Founder & CEO',
+    college: 'IIT Madras',
     bio: 'Visionary leader driving Trapy\'s mission to revolutionize how India travels. Passionate about building sustainable mobility solutions.',
     quote: 'Every shared ride is a step towards a greener, more connected India.',
     initials: 'R',
@@ -19,6 +21,7 @@ const founders: Founder[] = [
   {
     name: 'Nikhil',
     role: 'Co-founder & CTO',
+    college: 'VIT Bhopal',
     bio: 'Tech wizard behind Trapy\'s seamless platform. Building the infrastructure that makes ride-sharing safe and simple for millions.',
     quote: 'Technology should make life easier, and that\'s exactly what we\'re building at Trapy.',
     initials: 'N',
@@ -26,6 +29,7 @@ const founders: Founder[] = [
   {
     name: 'Aditiya',
     role: 'Co-founder & CFO',
+    college: 'Bennett University',
     bio: 'The financial strategist driving Trapy\'s growth. Ensuring sustainable business practices and smart investments for the future.',
     quote: 'Why travel alone when you can share the journey and make it memorable?',
     initials: 'A',
@@ -64,9 +68,10 @@ export default function FoundersSection() {
               {/* Name & Role */}
               <div className="text-center mb-4">
                 <h3 className="text-xl font-bold mb-1">{founder.name}</h3>
-                <span className="inline-block bg-primary/10 text-primary text-sm font-medium px-3 py-1 rounded-full">
+                <span className="inline-block bg-primary/10 text-primary text-sm font-medium px-3 py-1 rounded-full mb-2">
                   {founder.role}
                 </span>
+                <p className="text-xs text-muted-foreground">{founder.college}</p>
               </div>
 
               {/* Bio */}
