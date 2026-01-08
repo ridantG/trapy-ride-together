@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { Car, MapPin, Calendar, Users, Eye, X, Loader2 } from 'lucide-react';
+import { Car, MapPin, Calendar, Users, X, Loader2, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -32,7 +31,6 @@ interface RidesManagementTabProps {
 
 export function RidesManagementTab({ rides, onRefresh }: RidesManagementTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   const handleCancelRide = async (rideId: string) => {
@@ -61,37 +59,32 @@ export function RidesManagementTab({ rides, onRefresh }: RidesManagementTabProps
     }
   };
 
-  const activeRides = rides.filter(ride => ride.status !== 'cancelled');
+  // Separate rides by status
+  const activeRides = rides.filter(ride => ride.status === 'active' || ride.status === 'in_progress');
+  const completedRides = rides.filter(ride => ride.status === 'completed');
   const cancelledRides = rides.filter(ride => ride.status === 'cancelled');
 
-  const filterRides = (rideList: Ride[]) => {
-    return rideList.filter(ride => {
-      const matchesSearch = 
-        ride.origin.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        ride.destination.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        ride.profiles?.full_name?.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      const matchesStatus = statusFilter === 'all' || ride.status === statusFilter;
-      
-      return matchesSearch && matchesStatus;
-    });
+  const filterBySearch = (rideList: Ride[]) => {
+    if (!searchQuery) return rideList;
+    return rideList.filter(ride => 
+      ride.origin.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ride.destination.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ride.profiles?.full_name?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
   };
 
-  const filteredActiveRides = filterRides(activeRides);
-  const filteredCancelledRides = cancelledRides.filter(ride => {
-    return ride.origin.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ride.destination.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ride.profiles?.full_name?.toLowerCase().includes(searchQuery.toLowerCase());
-  });
+  const filteredActiveRides = filterBySearch(activeRides);
+  const filteredCompletedRides = filterBySearch(completedRides);
+  const filteredCancelledRides = filterBySearch(cancelledRides);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'active':
-        return <Badge className="bg-emerald text-white">Active</Badge>;
+        return <Badge className="bg-emerald-500 text-white">Active</Badge>;
       case 'in_progress':
         return <Badge className="bg-blue-500 text-white">In Progress</Badge>;
       case 'completed':
-        return <Badge variant="secondary">Completed</Badge>;
+        return <Badge className="bg-primary text-primary-foreground">Completed</Badge>;
       case 'cancelled':
         return <Badge variant="destructive">Cancelled</Badge>;
       default:
@@ -146,7 +139,7 @@ export function RidesManagementTab({ rides, onRefresh }: RidesManagementTabProps
               {showCancel && (
                 <td className="p-3">
                   <div className="flex items-center gap-1">
-                    {ride.status === 'active' && (
+                    {(ride.status === 'active' || ride.status === 'in_progress') && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -178,37 +171,39 @@ export function RidesManagementTab({ rides, onRefresh }: RidesManagementTabProps
 
   return (
     <div className="space-y-6">
+      {/* Search */}
+      <div className="flex items-center gap-2">
+        <Input
+          placeholder="Search by route or driver..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="max-w-sm"
+        />
+      </div>
+
       {/* Active Rides */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <CardTitle className="flex items-center gap-2">
-              <Car className="w-5 h-5" />
-              Active Rides ({filteredActiveRides.length})
-            </CardTitle>
-            <div className="flex items-center gap-2">
-              <Input
-                placeholder="Search rides..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-48"
-              />
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-32">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="in_progress">In Progress</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          <CardTitle className="flex items-center gap-2">
+            <Car className="w-5 h-5 text-emerald-500" />
+            Active Rides ({filteredActiveRides.length})
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <RideTable rideList={filteredActiveRides} showCancel={true} />
+        </CardContent>
+      </Card>
+
+      {/* Completed Rides */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-primary">
+            <CheckCircle className="w-5 h-5" />
+            Completed Rides ({filteredCompletedRides.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <RideTable rideList={filteredCompletedRides} showCancel={false} />
         </CardContent>
       </Card>
 
