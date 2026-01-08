@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Shield, Users, FileText, Car, AlertTriangle, 
-  Check, X, Loader2, Eye, Search, Mail, Lock, ArrowRight
+  Check, X, Loader2, Eye, Search, Mail, Lock, ArrowRight,
+  DollarSign
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -14,6 +15,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { AdminHeader } from '@/components/admin/AdminHeader';
+import { AdminStats } from '@/components/admin/AdminStats';
+import { SosAlertsTab } from '@/components/admin/SosAlertsTab';
+import { RidesManagementTab } from '@/components/admin/RidesManagementTab';
+import { BookingsTab } from '@/components/admin/BookingsTab';
 
 const ADMIN_EMAIL = 'trapy3004@gmail.com';
 
@@ -37,9 +43,12 @@ interface UserProfile {
   email?: string;
   is_aadhaar_verified: boolean;
   is_dl_verified: boolean;
+  is_phone_verified: boolean;
   total_rides: number;
   rating: number;
   created_at: string;
+  subscription_tier: string;
+  wallet_balance: number;
 }
 
 interface Stats {
@@ -47,6 +56,62 @@ interface Stats {
   totalRides: number;
   pendingVerifications: number;
   activeRides: number;
+  totalBookings: number;
+  activeSosAlerts: number;
+  completedRides: number;
+  totalRevenue: number;
+}
+
+interface SosAlert {
+  id: string;
+  user_id: string;
+  alert_type: string;
+  status: string;
+  location_text: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  created_at: string;
+  profiles?: {
+    full_name: string | null;
+    phone: string | null;
+  } | null;
+}
+
+interface Ride {
+  id: string;
+  origin: string;
+  destination: string;
+  departure_time: string;
+  price_per_seat: number;
+  seats_available: number;
+  status: string;
+  driver_id: string;
+  created_at: string;
+  profiles?: {
+    full_name: string | null;
+    phone: string | null;
+  } | null;
+}
+
+interface Booking {
+  id: string;
+  ride_id: string;
+  passenger_id: string;
+  seats_booked: number;
+  total_price: number;
+  platform_fee: number;
+  status: string;
+  payment_status: string;
+  created_at: string;
+  profiles?: {
+    full_name: string | null;
+    phone: string | null;
+  } | null;
+  rides?: {
+    origin: string;
+    destination: string;
+    departure_time: string;
+  } | null;
 }
 
 export default function Admin() {
@@ -54,9 +119,13 @@ export default function Admin() {
   const navigate = useNavigate();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const [pendingDocs, setPendingDocs] = useState<VerificationDocument[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [sosAlerts, setSosAlerts] = useState<SosAlert[]>([]);
+  const [rides, setRides] = useState<Ride[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [processingDoc, setProcessingDoc] = useState<string | null>(null);
   
@@ -78,7 +147,6 @@ export default function Admin() {
       return;
     }
 
-    // Check if logged in user is the allowed admin email
     if (user.email !== ADMIN_EMAIL) {
       setLoading(false);
       setIsAdmin(false);
@@ -95,9 +163,7 @@ export default function Admin() {
       
       setIsAdmin(data);
       if (data) {
-        fetchStats();
-        fetchPendingDocuments();
-        fetchUsers();
+        fetchAllData();
       }
     } catch (error) {
       console.error('Error checking admin status:', error);
@@ -107,11 +173,23 @@ export default function Admin() {
     }
   };
 
+  const fetchAllData = async () => {
+    setIsRefreshing(true);
+    await Promise.all([
+      fetchStats(),
+      fetchPendingDocuments(),
+      fetchUsers(),
+      fetchSosAlerts(),
+      fetchRides(),
+      fetchBookings(),
+    ]);
+    setIsRefreshing(false);
+  };
+
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
     
-    // Check if email matches allowed admin email
     if (adminEmail !== ADMIN_EMAIL) {
       setLoginError('Access denied. This email is not authorized for admin access.');
       return;
@@ -149,24 +227,42 @@ export default function Admin() {
     setLoginLoading(true);
     setLoginError('');
     await signInWithGoogle();
-    // Note: After Google OAuth redirect, the useEffect will check if the email matches ADMIN_EMAIL
     setLoginLoading(false);
   };
 
   const fetchStats = async () => {
     try {
-      const [profilesRes, ridesRes, docsRes, activeRidesRes] = await Promise.all([
+      const [
+        profilesRes, 
+        ridesRes, 
+        docsRes, 
+        activeRidesRes,
+        completedRidesRes,
+        bookingsRes,
+        sosRes,
+        revenueRes
+      ] = await Promise.all([
         supabase.from('profiles').select('id', { count: 'exact', head: true }),
         supabase.from('rides').select('id', { count: 'exact', head: true }),
         supabase.from('verification_documents').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
         supabase.from('rides').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+        supabase.from('rides').select('id', { count: 'exact', head: true }).eq('status', 'completed'),
+        supabase.from('bookings').select('id', { count: 'exact', head: true }),
+        supabase.from('sos_alerts').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+        supabase.from('bookings').select('platform_fee').eq('payment_status', 'completed'),
       ]);
+
+      const totalRevenue = (revenueRes.data || []).reduce((sum: number, b: any) => sum + (b.platform_fee || 0), 0);
 
       setStats({
         totalUsers: profilesRes.count || 0,
         totalRides: ridesRes.count || 0,
         pendingVerifications: docsRes.count || 0,
         activeRides: activeRidesRes.count || 0,
+        completedRides: completedRidesRes.count || 0,
+        totalBookings: bookingsRes.count || 0,
+        activeSosAlerts: sosRes.count || 0,
+        totalRevenue,
       });
     } catch (error) {
       console.error('Error fetching stats:', error);
@@ -200,12 +296,93 @@ export default function Admin() {
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(100);
 
       if (error) throw error;
       setUsers(data || []);
     } catch (error) {
       console.error('Error fetching users:', error);
+    }
+  };
+
+  const fetchSosAlerts = async () => {
+    try {
+      const { data: alertsData, error } = await supabase
+        .from('sos_alerts')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+      
+      // Fetch profiles for each alert
+      if (alertsData && alertsData.length > 0) {
+        const userIds = [...new Set(alertsData.map(a => a.user_id))];
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, full_name, phone')
+          .in('id', userIds);
+
+        const profilesMap = new Map(profilesData?.map(p => [p.id, p]) || []);
+        
+        const alertsWithProfiles = alertsData.map(alert => ({
+          ...alert,
+          profiles: profilesMap.get(alert.user_id) || null
+        }));
+        
+        setSosAlerts(alertsWithProfiles);
+      } else {
+        setSosAlerts([]);
+      }
+    } catch (error) {
+      console.error('Error fetching SOS alerts:', error);
+    }
+  };
+
+  const fetchRides = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('rides')
+        .select(`
+          *,
+          profiles:driver_id (
+            full_name,
+            phone
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+      setRides(data || []);
+    } catch (error) {
+      console.error('Error fetching rides:', error);
+    }
+  };
+
+  const fetchBookings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select(`
+          *,
+          profiles:passenger_id (
+            full_name,
+            phone
+          ),
+          rides:ride_id (
+            origin,
+            destination,
+            departure_time
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+      setBookings(data || []);
+    } catch (error) {
+      console.error('Error fetching bookings:', error);
     }
   };
 
@@ -217,8 +394,6 @@ export default function Admin() {
   ) => {
     setProcessingDoc(docId);
     try {
-      // Use secure server-side RPC function for admin document review
-      // This enforces admin authorization on the server and atomically updates both tables
       const { data, error } = await supabase.rpc('admin_review_document', {
         p_doc_id: docId,
         p_action: action,
@@ -246,10 +421,8 @@ export default function Admin() {
     }
   };
 
-  // Get signed URL for viewing documents securely
   const getSecureDocumentUrl = async (docId: string): Promise<string | null> => {
     try {
-      // Get the file path from secure RPC function
       const { data: filePath, error } = await supabase.rpc('get_document_signed_url', {
         p_doc_id: docId,
       });
@@ -257,7 +430,6 @@ export default function Admin() {
       if (error) throw error;
       if (!filePath) return null;
 
-      // Generate signed URL client-side (valid for 1 hour)
       const { data: signedUrl } = await supabase.storage
         .from('documents')
         .createSignedUrl(filePath, 3600);
@@ -300,7 +472,6 @@ export default function Admin() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
-          {/* Admin Logo */}
           <div className="text-center mb-8">
             <div className="w-16 h-16 rounded-2xl bg-primary/20 backdrop-blur-sm flex items-center justify-center mx-auto mb-4">
               <Shield className="w-8 h-8 text-primary" />
@@ -309,7 +480,6 @@ export default function Admin() {
             <p className="text-white/60 mt-2">Authorized personnel only</p>
           </div>
 
-          {/* Admin Login Card */}
           <Card className="border-0 shadow-2xl">
             <CardContent className="pt-6">
               <h2 className="text-xl font-bold text-center mb-6">Admin Login</h2>
@@ -380,7 +550,6 @@ export default function Admin() {
                 </button>
               </div>
 
-              {/* Divider */}
               <div className="relative my-6">
                 <div className="absolute inset-0 flex items-center">
                   <div className="w-full border-t border-border" />
@@ -390,7 +559,6 @@ export default function Admin() {
                 </div>
               </div>
 
-              {/* Google Sign In */}
               <Button
                 type="button"
                 variant="outline"
@@ -458,53 +626,13 @@ export default function Admin() {
 
   return (
     <div className="min-h-screen bg-muted/30 pt-20 pb-12">
-      <div className="container px-4 max-w-6xl">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Shield className="w-6 h-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold">Admin Dashboard</h1>
-            <p className="text-muted-foreground">Manage users and verifications</p>
-          </div>
-        </div>
+      <div className="container px-4 max-w-7xl">
+        <AdminHeader onRefresh={fetchAllData} isRefreshing={isRefreshing} />
+        
+        <AdminStats stats={stats} />
 
-        {/* Stats Cards */}
-        {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <Card>
-              <CardContent className="pt-6">
-                <Users className="w-6 h-6 text-primary mb-2" />
-                <p className="text-2xl font-bold">{stats.totalUsers}</p>
-                <p className="text-xs text-muted-foreground">Total Users</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <Car className="w-6 h-6 text-emerald mb-2" />
-                <p className="text-2xl font-bold">{stats.totalRides}</p>
-                <p className="text-xs text-muted-foreground">Total Rides</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <FileText className="w-6 h-6 text-warning mb-2" />
-                <p className="text-2xl font-bold">{stats.pendingVerifications}</p>
-                <p className="text-xs text-muted-foreground">Pending Verifications</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <Car className="w-6 h-6 text-blue-500 mb-2" />
-                <p className="text-2xl font-bold">{stats.activeRides}</p>
-                <p className="text-xs text-muted-foreground">Active Rides</p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        <Tabs defaultValue="verifications">
-          <TabsList className="mb-4">
+        <Tabs defaultValue="verifications" className="space-y-4">
+          <TabsList className="flex-wrap h-auto gap-1">
             <TabsTrigger value="verifications" className="gap-2">
               <FileText className="w-4 h-4" />
               Verifications
@@ -513,6 +641,23 @@ export default function Admin() {
                   {stats.pendingVerifications}
                 </Badge>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="sos" className="gap-2">
+              <AlertTriangle className="w-4 h-4" />
+              SOS Alerts
+              {stats && stats.activeSosAlerts > 0 && (
+                <Badge variant="destructive" className="ml-1">
+                  {stats.activeSosAlerts}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="rides" className="gap-2">
+              <Car className="w-4 h-4" />
+              Rides
+            </TabsTrigger>
+            <TabsTrigger value="bookings" className="gap-2">
+              <DollarSign className="w-4 h-4" />
+              Bookings
             </TabsTrigger>
             <TabsTrigger value="users" className="gap-2">
               <Users className="w-4 h-4" />
@@ -594,11 +739,23 @@ export default function Admin() {
             </Card>
           </TabsContent>
 
+          <TabsContent value="sos">
+            <SosAlertsTab alerts={sosAlerts} onRefresh={fetchSosAlerts} />
+          </TabsContent>
+
+          <TabsContent value="rides">
+            <RidesManagementTab rides={rides} onRefresh={fetchRides} />
+          </TabsContent>
+
+          <TabsContent value="bookings">
+            <BookingsTab bookings={bookings} />
+          </TabsContent>
+
           <TabsContent value="users">
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle>Users</CardTitle>
+                  <CardTitle>Users ({users.length})</CardTitle>
                   <div className="relative w-64">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
@@ -618,36 +775,56 @@ export default function Admin() {
                         <th className="text-left p-3 text-sm font-medium text-muted-foreground">User</th>
                         <th className="text-left p-3 text-sm font-medium text-muted-foreground">Phone</th>
                         <th className="text-left p-3 text-sm font-medium text-muted-foreground">Verification</th>
+                        <th className="text-left p-3 text-sm font-medium text-muted-foreground">Tier</th>
                         <th className="text-left p-3 text-sm font-medium text-muted-foreground">Rides</th>
                         <th className="text-left p-3 text-sm font-medium text-muted-foreground">Rating</th>
+                        <th className="text-left p-3 text-sm font-medium text-muted-foreground">Wallet</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredUsers.map((user) => (
-                        <tr key={user.id} className="border-b border-border hover:bg-muted/30">
+                      {filteredUsers.map((u) => (
+                        <tr key={u.id} className="border-b border-border hover:bg-muted/30">
                           <td className="p-3">
-                            <p className="font-medium">{user.full_name || 'No name'}</p>
+                            <p className="font-medium">{u.full_name || 'No name'}</p>
                             <p className="text-xs text-muted-foreground">
-                              {format(new Date(user.created_at), 'MMM d, yyyy')}
+                              {format(new Date(u.created_at), 'MMM d, yyyy')}
                             </p>
                           </td>
-                          <td className="p-3 text-sm">{user.phone || '-'}</td>
+                          <td className="p-3 text-sm">
+                            <div className="flex items-center gap-1">
+                              {u.phone || '-'}
+                              {u.is_phone_verified && (
+                                <Check className="w-3 h-3 text-emerald" />
+                              )}
+                            </div>
+                          </td>
                           <td className="p-3">
-                            <div className="flex gap-1">
-                              {user.is_aadhaar_verified && (
+                            <div className="flex gap-1 flex-wrap">
+                              {u.is_aadhaar_verified && (
                                 <Badge variant="secondary" className="text-xs">Aadhaar</Badge>
                               )}
-                              {user.is_dl_verified && (
+                              {u.is_dl_verified && (
                                 <Badge variant="secondary" className="text-xs">DL</Badge>
                               )}
-                              {!user.is_aadhaar_verified && !user.is_dl_verified && (
+                              {!u.is_aadhaar_verified && !u.is_dl_verified && (
                                 <span className="text-xs text-muted-foreground">Unverified</span>
                               )}
                             </div>
                           </td>
-                          <td className="p-3 text-sm">{user.total_rides || 0}</td>
+                          <td className="p-3">
+                            <Badge 
+                              variant={u.subscription_tier === 'premium' ? 'default' : 'outline'}
+                              className={u.subscription_tier === 'premium' ? 'bg-gradient-to-r from-amber-500 to-orange-500' : ''}
+                            >
+                              {u.subscription_tier || 'free'}
+                            </Badge>
+                          </td>
+                          <td className="p-3 text-sm">{u.total_rides || 0}</td>
                           <td className="p-3 text-sm">
-                            {user.rating ? `⭐ ${user.rating}` : '-'}
+                            {u.rating ? `⭐ ${Number(u.rating).toFixed(1)}` : '-'}
+                          </td>
+                          <td className="p-3 text-sm font-medium">
+                            ₹{u.wallet_balance || 0}
                           </td>
                         </tr>
                       ))}
