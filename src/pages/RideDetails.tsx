@@ -579,7 +579,7 @@ export default function RideDetails() {
                   <span>₹{ride.price_per_seat * seatsToBook}</span>
                 </div>
                 <div className="flex justify-between text-sm mb-2">
-                  <span className="text-muted-foreground">Service fee ({PLATFORM_FEE_PERCENTAGE * 100}%)</span>
+                  <span className="text-muted-foreground">Service fee ({PLATFORM_FEE_PERCENTAGE}%)</span>
                   <span>₹{platformFee}</span>
                 </div>
                 <div className="flex justify-between font-bold">
