@@ -50,7 +50,7 @@ interface Stats {
 }
 
 export default function Admin() {
-  const { user, signIn, signInWithGoogle } = useAuth();
+  const { user, signIn, signUp, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
@@ -65,6 +65,7 @@ export default function Admin() {
   const [adminPassword, setAdminPassword] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
 
   useEffect(() => {
     checkAdminStatus();
@@ -118,10 +119,27 @@ export default function Admin() {
 
     setLoginLoading(true);
     
-    const { error } = await signIn(adminEmail, adminPassword);
-    
-    if (error) {
-      setLoginError(error.message || 'Login failed. Please check your credentials.');
+    if (isSignUp) {
+      const { error } = await signUp(adminEmail, adminPassword, 'Admin');
+      if (error) {
+        setLoginError(error.message || 'Signup failed. Please try again.');
+      } else {
+        setLoginError('');
+        toast({
+          title: 'Account Created',
+          description: 'You can now sign in with your credentials.',
+        });
+        setIsSignUp(false);
+      }
+    } else {
+      const { error } = await signIn(adminEmail, adminPassword);
+      if (error) {
+        if (error.message?.includes('Invalid login credentials')) {
+          setLoginError('Account not found. Please sign up first.');
+        } else {
+          setLoginError(error.message || 'Login failed. Please check your credentials.');
+        }
+      }
     }
     
     setLoginLoading(false);
@@ -339,16 +357,28 @@ export default function Admin() {
                   {loginLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Signing in...
+                      {isSignUp ? 'Creating account...' : 'Signing in...'}
                     </>
                   ) : (
                     <>
-                      Access Admin Panel
+                      {isSignUp ? 'Create Admin Account' : 'Access Admin Panel'}
                       <ArrowRight className="w-4 h-4 ml-2" />
                     </>
                   )}
                 </Button>
               </form>
+
+              <div className="mt-4 text-center">
+                <button
+                  onClick={() => {
+                    setIsSignUp(!isSignUp);
+                    setLoginError('');
+                  }}
+                  className="text-primary font-medium text-sm hover:underline"
+                >
+                  {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
+                </button>
+              </div>
 
               {/* Divider */}
               <div className="relative my-6">
