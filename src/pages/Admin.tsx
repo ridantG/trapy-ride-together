@@ -2,17 +2,20 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Shield, Users, FileText, Car, AlertTriangle, 
-  Check, X, Loader2, Eye, Search
+  Check, X, Loader2, Eye, Search, Mail, Lock, ArrowRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+
+const ADMIN_EMAIL = 'trapy3004@gmail.com';
 
 interface VerificationDocument {
   id: string;
@@ -47,7 +50,7 @@ interface Stats {
 }
 
 export default function Admin() {
-  const { user } = useAuth();
+  const { user, signIn } = useAuth();
   const navigate = useNavigate();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
@@ -56,16 +59,28 @@ export default function Admin() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [processingDoc, setProcessingDoc] = useState<string | null>(null);
+  
+  // Admin login state
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState('');
 
   useEffect(() => {
-    if (user) {
-      checkAdminStatus();
-    }
+    checkAdminStatus();
   }, [user]);
 
   const checkAdminStatus = async () => {
     if (!user) {
-      navigate('/auth');
+      setLoading(false);
+      setIsAdmin(false);
+      return;
+    }
+
+    // Check if logged in user is the allowed admin email
+    if (user.email !== ADMIN_EMAIL) {
+      setLoading(false);
+      setIsAdmin(false);
       return;
     }
 
@@ -89,6 +104,27 @@ export default function Admin() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAdminLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
+    
+    // Check if email matches allowed admin email
+    if (adminEmail !== ADMIN_EMAIL) {
+      setLoginError('Access denied. This email is not authorized for admin access.');
+      return;
+    }
+
+    setLoginLoading(true);
+    
+    const { error } = await signIn(adminEmail, adminPassword);
+    
+    if (error) {
+      setLoginError(error.message || 'Login failed. Please check your credentials.');
+    }
+    
+    setLoginLoading(false);
   };
 
   const fetchStats = async () => {
@@ -233,6 +269,96 @@ export default function Admin() {
     );
   }
 
+  // Show admin login form if not logged in or wrong email
+  if (!user || user.email !== ADMIN_EMAIL) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+        <div className="w-full max-w-md">
+          {/* Admin Logo */}
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 rounded-2xl bg-primary/20 backdrop-blur-sm flex items-center justify-center mx-auto mb-4">
+              <Shield className="w-8 h-8 text-primary" />
+            </div>
+            <h1 className="text-3xl font-bold text-white">Admin Portal</h1>
+            <p className="text-white/60 mt-2">Authorized personnel only</p>
+          </div>
+
+          {/* Admin Login Card */}
+          <Card className="border-0 shadow-2xl">
+            <CardContent className="pt-6">
+              <h2 className="text-xl font-bold text-center mb-6">Admin Login</h2>
+              
+              {loginError && (
+                <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                  <p className="text-sm text-destructive text-center">{loginError}</p>
+                </div>
+              )}
+
+              <form onSubmit={handleAdminLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="adminEmail">Admin Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="adminEmail"
+                      type="email"
+                      placeholder="Enter admin email"
+                      value={adminEmail}
+                      onChange={(e) => setAdminEmail(e.target.value)}
+                      className="pl-10"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="adminPassword">Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      id="adminPassword"
+                      type="password"
+                      placeholder="Enter password"
+                      value={adminPassword}
+                      onChange={(e) => setAdminPassword(e.target.value)}
+                      className="pl-10"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <Button type="submit" className="w-full" size="lg" disabled={loginLoading}>
+                  {loginLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    <>
+                      Access Admin Panel
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </>
+                  )}
+                </Button>
+              </form>
+
+              <div className="mt-6 pt-6 border-t border-border">
+                <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                  <Shield className="w-4 h-4 text-primary" />
+                  <span>Restricted Access</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <p className="text-center text-white/40 text-sm mt-6">
+            This area is for authorized administrators only.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (!isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-muted/30">
@@ -241,7 +367,7 @@ export default function Admin() {
             <Shield className="w-12 h-12 mx-auto text-destructive mb-4" />
             <h1 className="text-xl font-bold mb-2">Access Denied</h1>
             <p className="text-muted-foreground mb-4">
-              You don't have permission to access the admin dashboard.
+              You don't have admin role assigned to your account.
             </p>
             <Button onClick={() => navigate('/dashboard')}>
               Go to Dashboard
