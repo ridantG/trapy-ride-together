@@ -1,6 +1,7 @@
 import { Shield, LogOut, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 
 interface AdminHeaderProps {
   onRefresh: () => void;
@@ -9,6 +10,12 @@ interface AdminHeaderProps {
 
 export function AdminHeader({ onRefresh, isRefreshing }: AdminHeaderProps) {
   const { signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/');
+  };
 
   return (
     <div className="flex items-center justify-between mb-6">
@@ -34,7 +41,7 @@ export function AdminHeader({ onRefresh, isRefreshing }: AdminHeaderProps) {
         <Button 
           variant="outline" 
           size="sm" 
-          onClick={() => signOut()}
+          onClick={handleLogout}
           className="text-destructive hover:text-destructive"
         >
           <LogOut className="w-4 h-4 mr-2" />

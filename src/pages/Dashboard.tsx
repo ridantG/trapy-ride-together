@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   Car, Wallet, Settings, Clock, MapPin, Star, 
   Calendar, ChevronRight, Shield, AlertTriangle,
@@ -45,6 +45,7 @@ interface Rating {
 
 export default function Dashboard() {
   const { profile, user, signOut } = useAuth();
+  const navigate = useNavigate();
   const [showSOS, setShowSOS] = useState(false);
   const [bookings, setBookings] = useState<BookingWithRide[]>([]);
   const [loading, setLoading] = useState(true);
@@ -447,7 +448,10 @@ export default function Dashboard() {
             <ChevronRight className="w-5 h-5 text-muted-foreground" />
           </Link>
           <button 
-            onClick={signOut}
+            onClick={async () => {
+              await signOut();
+              navigate('/');
+            }}
             className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors text-destructive"
           >
             <span className="font-medium">Sign Out</span>
