@@ -634,8 +634,12 @@ export default function Admin() {
         
         <AdminStats stats={stats} />
 
-        <Tabs defaultValue="verifications" className="space-y-4">
+        <Tabs defaultValue="analytics" className="space-y-4">
           <TabsList className="flex-wrap h-auto gap-1">
+            <TabsTrigger value="analytics" className="gap-2">
+              <DollarSign className="w-4 h-4" />
+              Analytics
+            </TabsTrigger>
             <TabsTrigger value="verifications" className="gap-2">
               <FileText className="w-4 h-4" />
               Verifications
@@ -654,6 +658,10 @@ export default function Admin() {
                 </Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="users" className="gap-2">
+              <Users className="w-4 h-4" />
+              Users
+            </TabsTrigger>
             <TabsTrigger value="rides" className="gap-2">
               <Car className="w-4 h-4" />
               Rides
@@ -662,9 +670,9 @@ export default function Admin() {
               <DollarSign className="w-4 h-4" />
               Bookings
             </TabsTrigger>
-            <TabsTrigger value="users" className="gap-2">
-              <Users className="w-4 h-4" />
-              Users
+            <TabsTrigger value="promos" className="gap-2">
+              <Shield className="w-4 h-4" />
+              Promo Codes
             </TabsTrigger>
           </TabsList>
 
@@ -754,88 +762,16 @@ export default function Admin() {
             <BookingsTab bookings={bookings} />
           </TabsContent>
 
+          <TabsContent value="analytics">
+            <AnalyticsTab />
+          </TabsContent>
+
           <TabsContent value="users">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Users ({users.length})</CardTitle>
-                  <div className="relative w-64">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search users..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-9"
-                    />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-border">
-                        <th className="text-left p-3 text-sm font-medium text-muted-foreground">User</th>
-                        <th className="text-left p-3 text-sm font-medium text-muted-foreground">Phone</th>
-                        <th className="text-left p-3 text-sm font-medium text-muted-foreground">Verification</th>
-                        <th className="text-left p-3 text-sm font-medium text-muted-foreground">Tier</th>
-                        <th className="text-left p-3 text-sm font-medium text-muted-foreground">Rides</th>
-                        <th className="text-left p-3 text-sm font-medium text-muted-foreground">Rating</th>
-                        <th className="text-left p-3 text-sm font-medium text-muted-foreground">Wallet</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredUsers.map((u) => (
-                        <tr key={u.id} className="border-b border-border hover:bg-muted/30">
-                          <td className="p-3">
-                            <p className="font-medium">{u.full_name || 'No name'}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {format(new Date(u.created_at), 'MMM d, yyyy')}
-                            </p>
-                          </td>
-                          <td className="p-3 text-sm">
-                            <div className="flex items-center gap-1">
-                              {u.phone || '-'}
-                              {u.is_phone_verified && (
-                                <Check className="w-3 h-3 text-emerald" />
-                              )}
-                            </div>
-                          </td>
-                          <td className="p-3">
-                            <div className="flex gap-1 flex-wrap">
-                              {u.is_aadhaar_verified && (
-                                <Badge variant="secondary" className="text-xs">Aadhaar</Badge>
-                              )}
-                              {u.is_dl_verified && (
-                                <Badge variant="secondary" className="text-xs">DL</Badge>
-                              )}
-                              {!u.is_aadhaar_verified && !u.is_dl_verified && (
-                                <span className="text-xs text-muted-foreground">Unverified</span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="p-3">
-                            <Badge 
-                              variant={u.subscription_tier === 'premium' ? 'default' : 'outline'}
-                              className={u.subscription_tier === 'premium' ? 'bg-gradient-to-r from-amber-500 to-orange-500' : ''}
-                            >
-                              {u.subscription_tier || 'free'}
-                            </Badge>
-                          </td>
-                          <td className="p-3 text-sm">{u.total_rides || 0}</td>
-                          <td className="p-3 text-sm">
-                            {u.rating ? `⭐ ${Number(u.rating).toFixed(1)}` : '-'}
-                          </td>
-                          <td className="p-3 text-sm font-medium">
-                            ₹{u.wallet_balance || 0}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
+            <UsersManagementTab />
+          </TabsContent>
+
+          <TabsContent value="promos">
+            <PromoCodesTab />
           </TabsContent>
         </Tabs>
       </div>
