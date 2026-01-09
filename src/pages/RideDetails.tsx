@@ -32,6 +32,7 @@ import PickupPointsManager, { PickupPoint } from '@/components/PickupPointsManag
 import { retryAsync, handleError, handleSuccess } from '@/lib/errorHandling';
 import { ReportModal } from '@/components/ReportModal';
 import { PromoCodeInput } from '@/components/PromoCodeInput';
+import { ShareRide } from '@/components/ShareRide';
 
 interface AppliedPromo {
   id: string;
@@ -348,12 +349,19 @@ export default function RideDetails() {
                 <ArrowLeft className="w-5 h-5" />
               </Button>
             </Link>
-            <div>
+            <div className="flex-1">
               <h1 className="font-semibold">
                 {ride.origin} → {ride.destination}
               </h1>
               <p className="text-sm text-muted-foreground">{formattedDate}</p>
             </div>
+            <ShareRide
+              rideId={ride.id}
+              origin={ride.origin}
+              destination={ride.destination}
+              departureTime={ride.departure_time}
+              price={ride.price_per_seat}
+            />
           </div>
         </div>
       </div>
