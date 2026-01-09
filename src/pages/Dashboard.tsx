@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { 
   Car, Wallet, Settings, Clock, MapPin, Star, 
   Calendar, ChevronRight, Shield, AlertTriangle,
-  Crown, Phone, CreditCard, Loader2, MessageCircle, XCircle, Navigation
+  Crown, Phone, CreditCard, Loader2, MessageCircle, XCircle, Navigation, Gift
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -15,6 +15,7 @@ import Chat from '@/components/Chat';
 import RatingModal from '@/components/RatingModal';
 import DriverRidesTab from '@/components/DriverRidesTab';
 import SavedSearches from '@/components/SavedSearches';
+import { ReferralSection } from '@/components/ReferralSection';
 import { BookingCardSkeleton, ProfileHeaderSkeleton } from '@/components/skeletons';
 import { retryAsync, handleError, handleSuccess } from '@/lib/errorHandling';
 
@@ -429,6 +430,11 @@ export default function Dashboard() {
         {/* Saved Searches */}
         <div className="bg-card border border-border rounded-2xl p-4 mb-6">
           <SavedSearches />
+        </div>
+
+        {/* Referral Program */}
+        <div className="mb-6">
+          <ReferralSection />
         </div>
 
         {/* Quick Links */}
