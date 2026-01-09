@@ -17,6 +17,9 @@ import DriverRidesTab from '@/components/DriverRidesTab';
 import SavedSearches from '@/components/SavedSearches';
 import { ReferralSection } from '@/components/ReferralSection';
 import { BookingCardSkeleton, ProfileHeaderSkeleton } from '@/components/skeletons';
+import RecurringRidesManager from '@/components/RecurringRidesManager';
+import EnhancedDriverEarnings from '@/components/EnhancedDriverEarnings';
+import { RideHistoryExport } from '@/components/RideHistoryExport';
 import { retryAsync, handleError, handleSuccess } from '@/lib/errorHandling';
 
 interface BookingWithRide {
@@ -359,11 +362,16 @@ export default function Dashboard() {
             )}
           </TabsContent>
 
-          <TabsContent value="myrides" className="mt-4">
+          <TabsContent value="myrides" className="mt-4 space-y-6">
             <DriverRidesTab />
+            <RecurringRidesManager />
+            <EnhancedDriverEarnings />
           </TabsContent>
 
           <TabsContent value="history" className="mt-4 space-y-4">
+            <div className="flex justify-end">
+              <RideHistoryExport />
+            </div>
             {pastBookings.length > 0 ? (
               pastBookings.map((booking) => (
                 <div key={booking.id} className="bg-card border border-border rounded-xl p-4 opacity-80">

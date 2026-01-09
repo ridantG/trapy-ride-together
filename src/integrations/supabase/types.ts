@@ -460,6 +460,89 @@ export type Database = {
           },
         ]
       }
+      recurring_rides: {
+        Row: {
+          car_model: string | null
+          car_number: string | null
+          created_at: string
+          departure_time: string
+          destination: string
+          driver_id: string
+          id: string
+          instant_approval: boolean | null
+          is_active: boolean | null
+          is_chatty: boolean | null
+          is_music_allowed: boolean | null
+          is_pet_friendly: boolean | null
+          is_smoking_allowed: boolean | null
+          is_women_only: boolean | null
+          max_two_back_seat: boolean | null
+          next_publish_date: string | null
+          origin: string
+          price_per_seat: number
+          recurrence_days: number[] | null
+          recurrence_type: string
+          seats_available: number
+          updated_at: string
+        }
+        Insert: {
+          car_model?: string | null
+          car_number?: string | null
+          created_at?: string
+          departure_time: string
+          destination: string
+          driver_id: string
+          id?: string
+          instant_approval?: boolean | null
+          is_active?: boolean | null
+          is_chatty?: boolean | null
+          is_music_allowed?: boolean | null
+          is_pet_friendly?: boolean | null
+          is_smoking_allowed?: boolean | null
+          is_women_only?: boolean | null
+          max_two_back_seat?: boolean | null
+          next_publish_date?: string | null
+          origin: string
+          price_per_seat: number
+          recurrence_days?: number[] | null
+          recurrence_type: string
+          seats_available?: number
+          updated_at?: string
+        }
+        Update: {
+          car_model?: string | null
+          car_number?: string | null
+          created_at?: string
+          departure_time?: string
+          destination?: string
+          driver_id?: string
+          id?: string
+          instant_approval?: boolean | null
+          is_active?: boolean | null
+          is_chatty?: boolean | null
+          is_music_allowed?: boolean | null
+          is_pet_friendly?: boolean | null
+          is_smoking_allowed?: boolean | null
+          is_women_only?: boolean | null
+          max_two_back_seat?: boolean | null
+          next_publish_date?: string | null
+          origin?: string
+          price_per_seat?: number
+          recurrence_days?: number[] | null
+          recurrence_type?: string
+          seats_available?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_rides_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       referrals: {
         Row: {
           completed_at: string | null
@@ -505,6 +588,70 @@ export type Database = {
           {
             foreignKeyName: "referrals_referrer_id_fkey"
             columns: ["referrer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reports: {
+        Row: {
+          admin_notes: string | null
+          category: string
+          created_at: string
+          description: string
+          id: string
+          reported_ride_id: string | null
+          reported_user_id: string | null
+          reporter_id: string
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          category: string
+          created_at?: string
+          description: string
+          id?: string
+          reported_ride_id?: string | null
+          reported_user_id?: string | null
+          reporter_id: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Update: {
+          admin_notes?: string | null
+          category?: string
+          created_at?: string
+          description?: string
+          id?: string
+          reported_ride_id?: string | null
+          reported_user_id?: string | null
+          reporter_id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reports_reported_ride_id_fkey"
+            columns: ["reported_ride_id"]
+            isOneToOne: false
+            referencedRelation: "rides"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reports_reported_user_id_fkey"
+            columns: ["reported_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reports_reporter_id_fkey"
+            columns: ["reporter_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -832,6 +979,16 @@ export type Database = {
           total_rides: number
           total_seats_sold: number
           week_earnings: number
+        }[]
+      }
+      get_driver_earnings_breakdown: {
+        Args: { p_days?: number; p_driver_id: string }
+        Returns: {
+          bookings_count: number
+          date: string
+          earnings: number
+          rides_count: number
+          seats_sold: number
         }[]
       }
       has_role: {
