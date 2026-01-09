@@ -4,13 +4,16 @@ import { Menu, X, Shield, Car, Search, User, Plus, LayoutDashboard, MessageCircl
 import { Button } from '@/components/ui/button';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/hooks/useAuth';
+import { useLanguage } from '@/hooks/useLanguage';
 import SafetyMenu from './SafetyMenu';
 import NotificationBell from './NotificationBell';
+import { LanguageSelector } from './LanguageSelector';
 
 export default function Navbar() {
   const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { isSafetyMenuOpen, setSafetyMenuOpen } = useApp();
   const { user } = useAuth();
+  const { t } = useLanguage();
   const location = useLocation();
 
   const isActive = (path: string) => location.pathname === path;
@@ -21,8 +24,8 @@ export default function Navbar() {
   }
 
   const navLinks = [
-    { path: '/search', label: 'Find a Ride', icon: Search },
-    { path: '/publish', label: 'Publish a Ride', icon: Plus },
+    { path: '/search', label: t('nav.findRide'), icon: Search },
+    { path: '/publish', label: t('nav.publishRide'), icon: Plus },
   ];
 
   return (
@@ -55,6 +58,9 @@ export default function Navbar() {
 
             {/* Right Side Actions */}
             <div className="flex items-center gap-2">
+              {/* Language Selector */}
+              <LanguageSelector />
+
               {/* Safety Shield Button */}
               <Button
                 variant="ghost"
@@ -88,7 +94,7 @@ export default function Navbar() {
               ) : (
                 <Link to="/auth">
                   <Button variant="default" className="hidden md:flex">
-                    Login
+                    {t('nav.login')}
                   </Button>
                 </Link>
               )}
