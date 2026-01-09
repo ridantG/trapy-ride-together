@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Shield, Users, FileText, Car, AlertTriangle, 
   Check, X, Loader2, Eye, Search, Mail, Lock, ArrowRight,
-  DollarSign
+  DollarSign, Flag
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -23,6 +23,7 @@ import { BookingsTab } from '@/components/admin/BookingsTab';
 import { UsersManagementTab } from '@/components/admin/UsersManagementTab';
 import { AnalyticsTab } from '@/components/admin/AnalyticsTab';
 import { PromoCodesTab } from '@/components/admin/PromoCodesTab';
+import { ReportsTab } from '@/components/admin/ReportsTab';
 
 const ADMIN_EMAIL = 'trapy3004@gmail.com';
 
@@ -674,6 +675,10 @@ export default function Admin() {
               <Shield className="w-4 h-4" />
               Promo Codes
             </TabsTrigger>
+            <TabsTrigger value="reports" className="gap-2">
+              <Flag className="w-4 h-4" />
+              Reports
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="verifications">
@@ -772,6 +777,10 @@ export default function Admin() {
 
           <TabsContent value="promos">
             <PromoCodesTab />
+          </TabsContent>
+
+          <TabsContent value="reports">
+            <ReportsTab />
           </TabsContent>
         </Tabs>
       </div>

@@ -17,6 +17,7 @@ import {
   CheckCircle,
   Loader2,
   Music,
+  Flag,
 } from 'lucide-react';
 import RideTracker from '@/components/RideTracker';
 import { Button } from '@/components/ui/button';
@@ -29,6 +30,7 @@ import { format } from 'date-fns';
 import { PLATFORM_FEE_PERCENTAGE, calculateTotalPrice } from '@/lib/constants';
 import PickupPointsManager, { PickupPoint } from '@/components/PickupPointsManager';
 import { retryAsync, handleError, handleSuccess } from '@/lib/errorHandling';
+import { ReportModal } from '@/components/ReportModal';
 
 interface RideWithDriver {
   id: string;
@@ -77,6 +79,7 @@ export default function RideDetails() {
   const [pickupPoints, setPickupPoints] = useState<PickupPointData[]>([]);
   const [selectedPickupPoint, setSelectedPickupPoint] = useState<string | null>(null);
   const [hasBooking, setHasBooking] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -525,14 +528,26 @@ export default function RideDetails() {
                 )}
               </div>
 
-              {ride.profiles?.phone && (
-                <a href={`tel:${ride.profiles.phone}`}>
-                  <Button variant="outline" className="w-full">
-                    <Phone className="w-4 h-4 mr-2" />
-                    Contact Driver
+              <div className="flex gap-2">
+                {ride.profiles?.phone && (
+                  <a href={`tel:${ride.profiles.phone}`} className="flex-1">
+                    <Button variant="outline" className="w-full">
+                      <Phone className="w-4 h-4 mr-2" />
+                      Contact
+                    </Button>
+                  </a>
+                )}
+                {user && ride.driver_id !== user.id && (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setShowReportModal(true)}
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    <Flag className="w-4 h-4" />
                   </Button>
-                </a>
-              )}
+                )}
+              </div>
             </div>
 
             {/* Booking Card - Desktop */}
@@ -632,6 +647,15 @@ export default function RideDetails() {
           </Button>
         </div>
       </div>
+
+      {/* Report Modal */}
+      <ReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        reportedUserId={ride.driver_id}
+        reportedRideId={ride.id}
+        reportedUserName={ride.profiles?.full_name || 'Driver'}
+      />
     </div>
   );
 }
