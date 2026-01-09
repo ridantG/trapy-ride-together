@@ -20,6 +20,9 @@ import { AdminStats } from '@/components/admin/AdminStats';
 import { SosAlertsTab } from '@/components/admin/SosAlertsTab';
 import { RidesManagementTab } from '@/components/admin/RidesManagementTab';
 import { BookingsTab } from '@/components/admin/BookingsTab';
+import { UsersManagementTab } from '@/components/admin/UsersManagementTab';
+import { AnalyticsTab } from '@/components/admin/AnalyticsTab';
+import { PromoCodesTab } from '@/components/admin/PromoCodesTab';
 
 const ADMIN_EMAIL = 'trapy3004@gmail.com';
 

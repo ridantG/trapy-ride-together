@@ -19,6 +19,8 @@ interface Profile {
   fuel_points: number;
   rating: number;
   total_rides: number;
+  referral_code: string | null;
+  is_suspended: boolean | null;
 }
 
 interface AuthContextType {

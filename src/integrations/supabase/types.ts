@@ -217,11 +217,15 @@ export type Database = {
           is_aadhaar_verified: boolean | null
           is_dl_verified: boolean | null
           is_phone_verified: boolean | null
+          is_suspended: boolean | null
           phone: string | null
           rating: number | null
+          referral_code: string | null
           subscription_tier:
             | Database["public"]["Enums"]["subscription_tier"]
             | null
+          suspended_at: string | null
+          suspension_reason: string | null
           total_rides: number | null
           updated_at: string | null
           wallet_balance: number | null
@@ -240,11 +244,15 @@ export type Database = {
           is_aadhaar_verified?: boolean | null
           is_dl_verified?: boolean | null
           is_phone_verified?: boolean | null
+          is_suspended?: boolean | null
           phone?: string | null
           rating?: number | null
+          referral_code?: string | null
           subscription_tier?:
             | Database["public"]["Enums"]["subscription_tier"]
             | null
+          suspended_at?: string | null
+          suspension_reason?: string | null
           total_rides?: number | null
           updated_at?: string | null
           wallet_balance?: number | null
@@ -263,14 +271,121 @@ export type Database = {
           is_aadhaar_verified?: boolean | null
           is_dl_verified?: boolean | null
           is_phone_verified?: boolean | null
+          is_suspended?: boolean | null
           phone?: string | null
           rating?: number | null
+          referral_code?: string | null
           subscription_tier?:
             | Database["public"]["Enums"]["subscription_tier"]
             | null
+          suspended_at?: string | null
+          suspension_reason?: string | null
           total_rides?: number | null
           updated_at?: string | null
           wallet_balance?: number | null
+        }
+        Relationships: []
+      }
+      promo_code_usage: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          discount_applied: number
+          id: string
+          promo_code_id: string
+          user_id: string
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          discount_applied: number
+          id?: string
+          promo_code_id: string
+          user_id: string
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          discount_applied?: number
+          id?: string
+          promo_code_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promo_code_usage_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promo_code_usage_promo_code_id_fkey"
+            columns: ["promo_code_id"]
+            isOneToOne: false
+            referencedRelation: "promo_codes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promo_code_usage_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      promo_codes: {
+        Row: {
+          code: string
+          created_at: string
+          description: string | null
+          discount_type: string
+          discount_value: number
+          id: string
+          is_active: boolean | null
+          is_first_ride_only: boolean | null
+          max_discount: number | null
+          min_ride_amount: number | null
+          updated_at: string
+          usage_limit: number | null
+          used_count: number | null
+          valid_from: string
+          valid_until: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          description?: string | null
+          discount_type: string
+          discount_value: number
+          id?: string
+          is_active?: boolean | null
+          is_first_ride_only?: boolean | null
+          max_discount?: number | null
+          min_ride_amount?: number | null
+          updated_at?: string
+          usage_limit?: number | null
+          used_count?: number | null
+          valid_from?: string
+          valid_until?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          description?: string | null
+          discount_type?: string
+          discount_value?: number
+          id?: string
+          is_active?: boolean | null
+          is_first_ride_only?: boolean | null
+          max_discount?: number | null
+          min_ride_amount?: number | null
+          updated_at?: string
+          usage_limit?: number | null
+          used_count?: number | null
+          valid_from?: string
+          valid_until?: string | null
         }
         Relationships: []
       }
@@ -341,6 +456,57 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      referrals: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          id: string
+          referred_id: string
+          referred_reward: number | null
+          referrer_id: string
+          referrer_reward: number | null
+          rewarded_at: string | null
+          status: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          referred_id: string
+          referred_reward?: number | null
+          referrer_id: string
+          referrer_reward?: number | null
+          rewarded_at?: string | null
+          status?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          referred_id?: string
+          referred_reward?: number | null
+          referrer_id?: string
+          referrer_reward?: number | null
+          rewarded_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referrals_referred_id_fkey"
+            columns: ["referred_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_referrer_id_fkey"
+            columns: ["referrer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -641,6 +807,17 @@ export type Database = {
       complete_ride: {
         Args: { p_driver_id: string; p_ride_id: string }
         Returns: boolean
+      }
+      get_admin_analytics: {
+        Args: { p_days?: number }
+        Returns: {
+          active_users: number
+          date: string
+          new_users: number
+          total_bookings: number
+          total_revenue: number
+          total_rides: number
+        }[]
       }
       get_booking_driver_id: { Args: { p_booking_id: string }; Returns: string }
       get_document_signed_url: { Args: { p_doc_id: string }; Returns: string }
