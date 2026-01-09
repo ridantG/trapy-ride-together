@@ -31,6 +31,17 @@ import { PLATFORM_FEE_PERCENTAGE, calculateTotalPrice } from '@/lib/constants';
 import PickupPointsManager, { PickupPoint } from '@/components/PickupPointsManager';
 import { retryAsync, handleError, handleSuccess } from '@/lib/errorHandling';
 import { ReportModal } from '@/components/ReportModal';
+import { PromoCodeInput } from '@/components/PromoCodeInput';
+
+interface AppliedPromo {
+  id: string;
+  code: string;
+  discount_type: string;
+  discount_value: number;
+  min_ride_amount: number | null;
+  max_discount: number | null;
+  is_first_ride_only: boolean | null;
+}
 
 interface RideWithDriver {
   id: string;
@@ -80,6 +91,8 @@ export default function RideDetails() {
   const [selectedPickupPoint, setSelectedPickupPoint] = useState<string | null>(null);
   const [hasBooking, setHasBooking] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [appliedPromo, setAppliedPromo] = useState<AppliedPromo | null>(null);
+  const [promoDiscount, setPromoDiscount] = useState(0);
 
   useEffect(() => {
     if (id) {
@@ -218,6 +231,8 @@ export default function RideDetails() {
     setBooking(true);
 
     try {
+      let bookingId: string | null = null;
+      
       await retryAsync(async () => {
         // Use atomic database function for race-condition-safe booking
         // Prices are now calculated server-side for security
@@ -229,12 +244,27 @@ export default function RideDetails() {
         });
 
         if (error) throw error;
+        bookingId = data;
       }, {
         maxRetries: 1,
         retryDelay: 1000,
       });
 
-      handleSuccess('Booking Successful!', `You have booked ${seatsToBook} seat(s).`);
+      // Record promo code usage if applied
+      if (appliedPromo && bookingId) {
+        try {
+          await supabase.from('promo_code_usage').insert({
+            promo_code_id: appliedPromo.id,
+            user_id: user.id,
+            booking_id: bookingId,
+            discount_applied: promoDiscount,
+          });
+        } catch {
+          console.warn('Failed to record promo usage');
+        }
+      }
+
+      handleSuccess('Booking Successful!', `You have booked ${seatsToBook} seat(s).${promoDiscount > 0 ? ` Saved ₹${promoDiscount}!` : ''}`);
       navigate('/dashboard');
     } catch (error: any) {
       handleError(error, error.message || 'Failed to book ride. Please try again.');
@@ -298,7 +328,14 @@ export default function RideDetails() {
   const departureDate = new Date(ride.departure_time);
   const formattedTime = format(departureDate, 'h:mm a');
   const formattedDate = format(departureDate, 'EEEE, MMMM d, yyyy');
-  const { totalPrice, platformFee } = calculateTotalPrice(ride.price_per_seat, seatsToBook);
+  const subtotal = ride.price_per_seat * seatsToBook;
+  const { totalPrice: baseTotalPrice, platformFee } = calculateTotalPrice(ride.price_per_seat, seatsToBook);
+  const finalTotal = Math.max(0, baseTotalPrice - promoDiscount);
+
+  const handlePromoApply = (promo: AppliedPromo | null, discount: number) => {
+    setAppliedPromo(promo);
+    setPromoDiscount(discount);
+  };
 
   return (
     <div className="min-h-screen bg-muted/30 pt-16 pb-24 md:pb-8">
@@ -588,18 +625,33 @@ export default function RideDetails() {
                 <span>{ride.seats_available} seats available</span>
               </div>
 
+              {/* Promo Code */}
+              <div className="mb-4">
+                <PromoCodeInput
+                  subtotal={subtotal}
+                  onApply={handlePromoApply}
+                  appliedPromo={appliedPromo}
+                />
+              </div>
+
               <div className="border-t border-border pt-4 mb-4">
                 <div className="flex justify-between text-sm mb-1">
                   <span className="text-muted-foreground">Subtotal ({seatsToBook} seat{seatsToBook > 1 ? 's' : ''})</span>
-                  <span>₹{ride.price_per_seat * seatsToBook}</span>
+                  <span>₹{subtotal}</span>
                 </div>
-                <div className="flex justify-between text-sm mb-2">
+                <div className="flex justify-between text-sm mb-1">
                   <span className="text-muted-foreground">Service fee ({PLATFORM_FEE_PERCENTAGE}%)</span>
                   <span>₹{platformFee}</span>
                 </div>
-                <div className="flex justify-between font-bold">
+                {promoDiscount > 0 && (
+                  <div className="flex justify-between text-sm mb-1 text-emerald">
+                    <span>Promo discount</span>
+                    <span>-₹{promoDiscount}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-bold pt-2 border-t border-border mt-2">
                   <span>Total</span>
-                  <span className="text-primary">₹{totalPrice}</span>
+                  <span className="text-primary">₹{finalTotal}</span>
                 </div>
               </div>
 
@@ -629,8 +681,11 @@ export default function RideDetails() {
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border p-4 md:hidden z-50">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-2xl font-bold text-primary">₹{totalPrice}</p>
-            <p className="text-sm text-muted-foreground">{ride.seats_available} seats left</p>
+            <p className="text-2xl font-bold text-primary">₹{finalTotal}</p>
+            <p className="text-sm text-muted-foreground">
+              {promoDiscount > 0 && <span className="text-emerald">-₹{promoDiscount} </span>}
+              {ride.seats_available} seats left
+            </p>
           </div>
           <Button 
             size="lg" 
