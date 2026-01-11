@@ -210,6 +210,8 @@ export type Database = {
           avatar_url: string | null
           created_at: string | null
           dl_status: Database["public"]["Enums"]["verification_status"] | null
+          email: string | null
+          email_notifications_enabled: boolean | null
           fuel_points: number | null
           full_name: string | null
           gender: string | null
@@ -218,7 +220,9 @@ export type Database = {
           is_dl_verified: boolean | null
           is_phone_verified: boolean | null
           is_suspended: boolean | null
+          notifications_enabled: boolean | null
           phone: string | null
+          push_notifications_enabled: boolean | null
           rating: number | null
           referral_code: string | null
           subscription_tier:
@@ -237,6 +241,8 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string | null
           dl_status?: Database["public"]["Enums"]["verification_status"] | null
+          email?: string | null
+          email_notifications_enabled?: boolean | null
           fuel_points?: number | null
           full_name?: string | null
           gender?: string | null
@@ -245,7 +251,9 @@ export type Database = {
           is_dl_verified?: boolean | null
           is_phone_verified?: boolean | null
           is_suspended?: boolean | null
+          notifications_enabled?: boolean | null
           phone?: string | null
+          push_notifications_enabled?: boolean | null
           rating?: number | null
           referral_code?: string | null
           subscription_tier?:
@@ -264,6 +272,8 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string | null
           dl_status?: Database["public"]["Enums"]["verification_status"] | null
+          email?: string | null
+          email_notifications_enabled?: boolean | null
           fuel_points?: number | null
           full_name?: string | null
           gender?: string | null
@@ -272,7 +282,9 @@ export type Database = {
           is_dl_verified?: boolean | null
           is_phone_verified?: boolean | null
           is_suspended?: boolean | null
+          notifications_enabled?: boolean | null
           phone?: string | null
+          push_notifications_enabled?: boolean | null
           rating?: number | null
           referral_code?: string | null
           subscription_tier?:
@@ -393,27 +405,36 @@ export type Database = {
         Row: {
           auth: string
           created_at: string
+          device_type: string | null
           endpoint: string
+          fcm_token: string | null
           id: string
           p256dh: string
+          platform: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           auth: string
           created_at?: string
+          device_type?: string | null
           endpoint: string
+          fcm_token?: string | null
           id?: string
           p256dh: string
+          platform?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           auth?: string
           created_at?: string
+          device_type?: string | null
           endpoint?: string
+          fcm_token?: string | null
           id?: string
           p256dh?: string
+          platform?: string | null
           updated_at?: string
           user_id?: string
         }
