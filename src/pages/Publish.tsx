@@ -30,6 +30,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { MAX_PRICE_PER_KM } from '@/lib/constants';
 import PickupPointsManager, { PickupPoint } from '@/components/PickupPointsManager';
 import { retryAsync, handleError, handleSuccess } from '@/lib/errorHandling';
+import RouteMapPreview from '@/components/RouteMapPreview';
+import PlaceAutocomplete from '@/components/PlaceAutocomplete';
 
 export default function Publish() {
   const navigate = useNavigate();
@@ -309,10 +311,18 @@ export default function Publish() {
                   </Popover>
                 </div>
 
-                {/* Map Placeholder */}
-                <div className="bg-gradient-to-br from-indigo-100 to-emerald-50 rounded-xl h-40 flex items-center justify-center border border-border">
-                  <p className="text-muted-foreground text-sm">Map preview</p>
-                </div>
+                {/* Interactive Map Preview */}
+                <RouteMapPreview
+                  origin={from}
+                  destination={to}
+                  height="180px"
+                  showInfo={from && to ? true : false}
+                  onDistanceCalculated={(distanceKm) => {
+                    if (!distanceKm) return;
+                    setDistanceKm(distanceKm);
+                    setPrice(Math.round(distanceKm * 4)); // Auto-suggest price
+                  }}
+                />
               </div>
             )}
 
