@@ -25,7 +25,8 @@ import { AnalyticsTab } from '@/components/admin/AnalyticsTab';
 import { PromoCodesTab } from '@/components/admin/PromoCodesTab';
 import { ReportsTab } from '@/components/admin/ReportsTab';
 
-const ADMIN_EMAIL = 'trapy3004@gmail.com';
+// Admin access is determined purely by the 'admin' role in user_roles table via has_role() RPC
+// No hardcoded email - all authorization is enforced server-side
 
 interface VerificationDocument {
   id: string;
@@ -151,12 +152,8 @@ export default function Admin() {
       return;
     }
 
-    if (user.email !== ADMIN_EMAIL) {
-      setLoading(false);
-      setIsAdmin(false);
-      return;
-    }
-
+    // Admin access determined purely by server-side role check
+    // No client-side email validation - has_role() RPC is the single source of truth
     try {
       const { data, error } = await supabase.rpc('has_role', {
         _user_id: user.id,
@@ -165,8 +162,8 @@ export default function Admin() {
 
       if (error) throw error;
       
-      setIsAdmin(data);
-      if (data) {
+      setIsAdmin(data === true);
+      if (data === true) {
         fetchAllData();
       }
     } catch (error) {
@@ -194,10 +191,8 @@ export default function Admin() {
     e.preventDefault();
     setLoginError('');
     
-    if (adminEmail !== ADMIN_EMAIL) {
-      setLoginError('Access denied. This email is not authorized for admin access.');
-      return;
-    }
+    // No client-side email validation - server-side has_role() determines admin access
+    // This prevents hardcoded email bypass vulnerabilities
 
     setLoginLoading(true);
     
@@ -471,8 +466,8 @@ export default function Admin() {
     );
   }
 
-  // Show admin login form if not logged in or wrong email
-  if (!user || user.email !== ADMIN_EMAIL) {
+  // Show admin login form if not logged in or not an admin (server-side validated)
+  if (!user || isAdmin === false) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
