@@ -8,6 +8,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { LanguageProvider } from "@/hooks/useLanguage";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { OfflineDetector } from "@/components/OfflineDetector";
+import { AISupportChat } from "@/components/AISupportChat";
 import Navbar from "@/components/Navbar";
 import Index from "./pages/Index";
 import Search from "./pages/Search";
@@ -59,6 +60,7 @@ const App = () => (
                   <Route path="/admin" element={<Admin />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
+                <AISupportChat />
               </BrowserRouter>
             </AppProvider>
           </AuthProvider>
