@@ -10,8 +10,8 @@ const firebaseConfig = {
   authDomain: "trapy-6cb9a.firebaseapp.com",
   projectId: "trapy-6cb9a",
   storageBucket: "trapy-6cb9a.firebasestorage.app",
-  messagingSenderId: "123456789",
-  appId: "1:123456789:web:abc123",
+  messagingSenderId: "181603651790",
+  appId: "1:181603651790:web:e023215cec695d0640c09f",
 };
 
 // Initialize Firebase
