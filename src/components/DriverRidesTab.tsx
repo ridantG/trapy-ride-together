@@ -296,12 +296,14 @@ export default function DriverRidesTab() {
       <DriverEarnings />
 
       {rides.map((ride) => {
-        const isPast = new Date(ride.departure_time) < now;
-        const activeBookings = ride.bookings.filter(b => b.status !== 'cancelled');
-        const hasBookings = activeBookings.length > 0;
-        const canEdit = !isPast && ride.status === 'active';
-        const canStart = ride.status === 'active' && !isPast && hasBookings;
-        const canComplete = ride.status === 'started';
+      const isPast = new Date(ride.departure_time) < now;
+      const activeBookings = ride.bookings.filter(b => b.status !== 'cancelled');
+      const pendingBookings = ride.bookings.filter(b => b.status === 'pending');
+      const confirmedBookings = ride.bookings.filter(b => b.status === 'confirmed');
+      const hasBookings = activeBookings.length > 0;
+      const canEdit = !isPast && ride.status === 'active';
+      const canStart = ride.status === 'active' && !isPast && confirmedBookings.length > 0;
+      const canComplete = ride.status === 'started';
 
         return (
           <div key={ride.id} className={`bg-card border border-border rounded-xl overflow-hidden ${isPast && ride.status !== 'started' ? 'opacity-70' : ''}`}>
@@ -331,9 +333,14 @@ export default function DriverRidesTab() {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  {hasBookings && (
-                    <Badge variant="secondary" className="bg-primary/10 text-primary">
-                      {activeBookings.length} booking{activeBookings.length > 1 ? 's' : ''}
+                  {pendingBookings.length > 0 && (
+                    <Badge variant="secondary" className="bg-warning/10 text-warning border-warning/20 animate-pulse">
+                      {pendingBookings.length} pending
+                    </Badge>
+                  )}
+                  {confirmedBookings.length > 0 && (
+                    <Badge variant="secondary" className="bg-emerald/10 text-emerald">
+                      {confirmedBookings.length} confirmed
                     </Badge>
                   )}
                   {expandedRide === ride.id ? (
@@ -432,7 +439,85 @@ export default function DriverRidesTab() {
                   </div>
                 ) : (
                   <div className="divide-y divide-border">
-                    {activeBookings.map((booking) => (
+                    {/* Pending Bookings Section - Highlighted */}
+                    {activeBookings.filter(b => b.status === 'pending').length > 0 && (
+                      <div className="p-3 bg-warning/10 border-b border-warning/20">
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="w-2 h-2 rounded-full bg-warning animate-pulse" />
+                          <p className="text-sm font-semibold text-warning">
+                            {activeBookings.filter(b => b.status === 'pending').length} booking(s) awaiting your confirmation
+                          </p>
+                        </div>
+                        <div className="space-y-3">
+                          {activeBookings.filter(b => b.status === 'pending').map((booking) => (
+                            <div key={booking.id} className="bg-card rounded-lg p-4 border border-warning/30">
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <p className="font-medium">{booking.profiles?.full_name || 'Passenger'}</p>
+                                    {booking.profiles?.rating !== null && (
+                                      <span className="text-xs text-muted-foreground flex items-center gap-0.5">
+                                        <Star className="w-3 h-3 fill-warning text-warning" />
+                                        {booking.profiles.rating}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-sm text-muted-foreground">
+                                    {booking.seats_booked} seat{booking.seats_booked > 1 ? 's' : ''} • ₹{booking.total_price}
+                                  </p>
+                                  {booking.pickup_points && (
+                                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                                      <MapPin className="w-3 h-3" />
+                                      Pickup: {booking.pickup_points.name}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              {/* Clear Action Buttons */}
+                              <div className="flex gap-2 mt-3">
+                                <Button
+                                  size="sm"
+                                  className="flex-1 bg-emerald hover:bg-emerald/90"
+                                  onClick={() => handleConfirmBooking(booking.id)}
+                                  disabled={confirmingBooking === booking.id}
+                                >
+                                  {confirmingBooking === booking.id ? (
+                                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                  ) : (
+                                    <Check className="w-4 h-4 mr-2" />
+                                  )}
+                                  Confirm Booking
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="flex-1 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => handleCancelBooking(booking.id)}
+                                >
+                                  <X className="w-4 h-4 mr-2" />
+                                  Reject
+                                </Button>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="w-full mt-2"
+                                onClick={() => {
+                                  setActiveChatBooking(booking);
+                                  setActiveChatRide(ride);
+                                }}
+                              >
+                                <MessageCircle className="w-4 h-4 mr-2" />
+                                Message Passenger
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Confirmed Bookings */}
+                    {activeBookings.filter(b => b.status === 'confirmed').map((booking) => (
                       <div key={booking.id} className="p-4">
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1">
@@ -456,37 +541,21 @@ export default function DriverRidesTab() {
                             )}
                           </div>
                           <div className="flex flex-col items-end gap-2">
-                            <Badge variant={
-                              booking.status === 'confirmed' ? 'default' :
-                              booking.status === 'pending' ? 'secondary' : 'destructive'
-                            }>
-                              {booking.status}
+                            <Badge className="bg-emerald/10 text-emerald border-emerald/20">
+                              <Check className="w-3 h-3 mr-1" />
+                              Confirmed
                             </Badge>
                             <div className="flex gap-2">
-                              {booking.status === 'pending' && !isPast && (
-                                <>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-8"
-                                    onClick={() => handleConfirmBooking(booking.id)}
-                                    disabled={confirmingBooking === booking.id}
-                                  >
-                                    {confirmingBooking === booking.id ? (
-                                      <Loader2 className="w-3 h-3 animate-spin" />
-                                    ) : (
-                                      <Check className="w-3 h-3" />
-                                    )}
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-8 text-destructive hover:text-destructive"
-                                    onClick={() => handleCancelBooking(booking.id)}
-                                  >
-                                    <X className="w-3 h-3" />
-                                  </Button>
-                                </>
+                              {!isPast && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 text-destructive hover:text-destructive"
+                                  onClick={() => handleCancelBooking(booking.id)}
+                                >
+                                  <X className="w-3 h-3 mr-1" />
+                                  Cancel
+                                </Button>
                               )}
                               <Button
                                 size="sm"
@@ -499,7 +568,7 @@ export default function DriverRidesTab() {
                               >
                                 <MessageCircle className="w-3 h-3" />
                               </Button>
-                              {isPast && booking.status === 'confirmed' && !hasRated(booking.id) && (
+                              {isPast && !hasRated(booking.id) && (
                                 <Button
                                   size="sm"
                                   variant="outline"

@@ -256,7 +256,16 @@ export default function Dashboard() {
               </>
             ) : upcomingBookings.length > 0 ? (
               upcomingBookings.map((booking) => (
-                <div key={booking.id} className="bg-card border border-border rounded-xl p-4 hover:shadow-soft transition-shadow">
+                <div 
+                  key={booking.id} 
+                  className={`bg-card border rounded-xl p-4 hover:shadow-soft transition-shadow ${
+                    booking.status === 'pending' 
+                      ? 'border-warning/50 bg-warning/5' 
+                      : booking.status === 'confirmed' 
+                        ? 'border-emerald/50' 
+                        : 'border-border'
+                  }`}
+                >
                   <Link to={`/ride/${booking.rides?.id}`}>
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
@@ -268,11 +277,21 @@ export default function Dashboard() {
                           {booking.rides ? format(new Date(booking.rides.departure_time), 'h:mm a') : ''}
                         </span>
                       </div>
-                      {/* Ride Status Badge */}
+                      {/* Booking Status Badge */}
                       {booking.rides?.status === 'started' ? (
-                        <span className="text-xs bg-emerald-light text-emerald px-2 py-1 rounded-full animate-pulse flex items-center gap-1">
+                        <span className="text-xs bg-emerald/10 text-emerald px-2 py-1 rounded-full animate-pulse flex items-center gap-1">
                           <span className="w-2 h-2 rounded-full bg-emerald" />
                           In Progress
+                        </span>
+                      ) : booking.status === 'pending' ? (
+                        <span className="text-xs bg-warning/10 text-warning px-2 py-1 rounded-full flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          Awaiting Confirmation
+                        </span>
+                      ) : booking.status === 'confirmed' ? (
+                        <span className="text-xs bg-emerald/10 text-emerald px-2 py-1 rounded-full flex items-center gap-1">
+                          <Shield className="w-3 h-3" />
+                          Confirmed
                         </span>
                       ) : (
                         <ChevronRight className="w-5 h-5 text-muted-foreground" />
@@ -280,9 +299,15 @@ export default function Dashboard() {
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="flex flex-col items-center">
-                        <div className={`w-2 h-2 rounded-full ${booking.rides?.status === 'started' ? 'bg-emerald' : 'bg-primary'}`} />
+                        <div className={`w-2 h-2 rounded-full ${
+                          booking.rides?.status === 'started' ? 'bg-emerald' : 
+                          booking.status === 'pending' ? 'bg-warning' : 'bg-primary'
+                        }`} />
                         <div className="w-0.5 h-8 bg-border" />
-                        <div className={`w-2 h-2 rounded-full border-2 ${booking.rides?.status === 'started' ? 'border-emerald' : 'border-primary'}`} />
+                        <div className={`w-2 h-2 rounded-full border-2 ${
+                          booking.rides?.status === 'started' ? 'border-emerald' : 
+                          booking.status === 'pending' ? 'border-warning' : 'border-primary'
+                        }`} />
                       </div>
                       <div className="flex-1">
                         <p className="font-medium text-sm">{booking.rides?.origin}</p>
@@ -294,13 +319,24 @@ export default function Dashboard() {
                       </div>
                     </div>
                   </Link>
+                  
+                  {/* Status Explanation for Pending */}
+                  {booking.status === 'pending' && (
+                    <div className="mt-3 p-2 bg-warning/10 rounded-lg border border-warning/20">
+                      <p className="text-xs text-warning flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        The driver needs to confirm your booking. You'll be notified once confirmed.
+                      </p>
+                    </div>
+                  )}
+                  
                   {/* Actions */}
                   <div className="mt-3 pt-3 border-t border-border flex justify-between items-center gap-2">
                     <p className="text-xs text-muted-foreground">
                       Driver: {booking.rides?.profiles?.full_name || 'Unknown'}
                     </p>
                     <div className="flex gap-2">
-                      {booking.status === 'pending' && booking.rides && new Date(booking.rides.departure_time) > new Date() && booking.rides?.status === 'active' && (
+                      {(booking.status === 'pending' || booking.status === 'confirmed') && booking.rides && new Date(booking.rides.departure_time) > new Date() && booking.rides?.status === 'active' && (
                         <Button
                           variant="outline"
                           size="sm"
