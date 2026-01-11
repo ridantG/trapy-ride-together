@@ -594,6 +594,44 @@ export type Database = {
           },
         ]
       }
+      report_audit_log: {
+        Row: {
+          action: string
+          admin_id: string
+          created_at: string
+          id: string
+          new_values: Json | null
+          old_values: Json | null
+          report_id: string
+        }
+        Insert: {
+          action: string
+          admin_id: string
+          created_at?: string
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          report_id: string
+        }
+        Update: {
+          action?: string
+          admin_id?: string
+          created_at?: string
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          report_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_audit_log_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reports: {
         Row: {
           admin_notes: string | null
