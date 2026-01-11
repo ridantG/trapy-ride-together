@@ -98,7 +98,7 @@ export default function Index() {
         <section className="py-12 bg-background">
           <div className="container px-4">
             <div className="max-w-4xl mx-auto">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div className="bg-card border border-border rounded-xl p-4 text-center">
                   <p className="text-2xl font-bold text-primary">{profile?.total_rides || 0}</p>
                   <p className="text-sm text-muted-foreground">Total Rides</p>
@@ -106,10 +106,6 @@ export default function Index() {
                 <div className="bg-card border border-border rounded-xl p-4 text-center">
                   <p className="text-2xl font-bold text-emerald">₹{profile?.wallet_balance || 0}</p>
                   <p className="text-sm text-muted-foreground">Wallet Balance</p>
-                </div>
-                <div className="bg-card border border-border rounded-xl p-4 text-center">
-                  <p className="text-2xl font-bold text-warning">{profile?.fuel_points || 0}</p>
-                  <p className="text-sm text-muted-foreground">Fuel Points</p>
                 </div>
                 <div className="bg-card border border-border rounded-xl p-4 text-center">
                   <p className="text-2xl font-bold text-primary">⭐ {profile?.rating?.toFixed(1) || '5.0'}</p>

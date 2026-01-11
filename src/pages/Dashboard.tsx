@@ -228,11 +228,6 @@ export default function Dashboard() {
             <p className="text-2xl font-bold">{profile?.total_rides || 0}</p>
             <p className="text-xs text-muted-foreground">Total Rides</p>
           </div>
-          <div className="bg-card border border-border rounded-xl p-4">
-            <CreditCard className="w-6 h-6 text-purple-500 mb-2" />
-            <p className="text-2xl font-bold">{profile?.fuel_points || 0}</p>
-            <p className="text-xs text-muted-foreground">Fuel Points</p>
-          </div>
           <Link to="/trapy-pass" className="bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl p-4 text-white">
             <Crown className="w-6 h-6 mb-2" />
             <p className="text-sm font-bold">
