@@ -33,6 +33,8 @@ import { retryAsync, handleError, handleSuccess } from '@/lib/errorHandling';
 import { ReportModal } from '@/components/ReportModal';
 import { PromoCodeInput } from '@/components/PromoCodeInput';
 import { ShareRide } from '@/components/ShareRide';
+import GoogleMap from '@/components/GoogleMap';
+import LiveLocationTracker from '@/components/LiveLocationTracker';
 
 interface AppliedPromo {
   id: string;
@@ -370,13 +372,24 @@ export default function RideDetails() {
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Map Placeholder */}
-            <div className="bg-gradient-to-br from-indigo-100 to-emerald-50 rounded-2xl h-48 md:h-64 flex items-center justify-center border border-border">
-              <div className="text-center">
-                <MapPin className="w-12 h-12 text-primary mx-auto mb-2" />
-                <p className="text-muted-foreground">Route Map</p>
-              </div>
-            </div>
+            {/* Interactive Map */}
+            {ride.status === 'started' ? (
+              <LiveLocationTracker
+                rideId={ride.id}
+                origin={ride.origin}
+                destination={ride.destination}
+                isDriver={user?.id === ride.driver_id}
+                rideStatus={ride.status || 'active'}
+              />
+            ) : (
+              <GoogleMap
+                origin={ride.origin}
+                destination={ride.destination}
+                showRoute={true}
+                height="250px"
+                className="rounded-2xl"
+              />
+            )}
 
             {/* Route Details */}
             <div className="bg-card border border-border rounded-xl p-6">
