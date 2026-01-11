@@ -375,14 +375,10 @@ export function UsersManagementTab() {
               )}
 
               {/* Stats Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div className="bg-muted/50 rounded-lg p-3 text-center">
                   <p className="text-lg font-bold">₹{selectedUser.wallet_balance?.toFixed(0) || 0}</p>
                   <p className="text-xs text-muted-foreground">Wallet Balance</p>
-                </div>
-                <div className="bg-muted/50 rounded-lg p-3 text-center">
-                  <p className="text-lg font-bold">{selectedUser.fuel_points || 0}</p>
-                  <p className="text-xs text-muted-foreground">Fuel Points</p>
                 </div>
                 <div className="bg-muted/50 rounded-lg p-3 text-center">
                   <p className="text-lg font-bold">{selectedUser.rating?.toFixed(1) || '0.0'}</p>
