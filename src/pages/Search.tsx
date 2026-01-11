@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Filter, SlidersHorizontal, X, Users, PawPrint, Zap, Loader2, Car } from 'lucide-react';
+import { Filter, SlidersHorizontal, X, Users, PawPrint, Zap, Loader2, Car, Map, List } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
@@ -12,6 +12,7 @@ import { useApp } from '@/contexts/AppContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { retryAsync, handleError } from '@/lib/errorHandling';
+import SearchMapView from '@/components/SearchMapView';
 
 interface RideWithDriver {
   id: string;
@@ -56,6 +57,7 @@ export default function Search() {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const PAGE_SIZE = 10;
 
   useEffect(() => {
@@ -298,23 +300,71 @@ export default function Search() {
             </p>
           </div>
 
-          {/* Mobile Filter Button */}
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" className="md:hidden">
-                <SlidersHorizontal className="w-4 h-4 mr-2" />
-                Filters
+          <div className="flex items-center gap-2">
+            {/* View Toggle */}
+            <div className="hidden md:flex items-center bg-muted rounded-lg p-1">
+              <Button
+                variant={viewMode === 'list' ? 'default' : 'ghost'}
+                size="sm"
+                className="h-8"
+                onClick={() => setViewMode('list')}
+              >
+                <List className="w-4 h-4 mr-1" />
+                List
               </Button>
-            </SheetTrigger>
-            <SheetContent side="right">
-              <SheetHeader>
-                <SheetTitle>Filters</SheetTitle>
-              </SheetHeader>
-              <div className="mt-6">
-                <FilterContent />
-              </div>
-            </SheetContent>
-          </Sheet>
+              <Button
+                variant={viewMode === 'map' ? 'default' : 'ghost'}
+                size="sm"
+                className="h-8"
+                onClick={() => setViewMode('map')}
+              >
+                <Map className="w-4 h-4 mr-1" />
+                Map
+              </Button>
+            </div>
+
+            {/* Mobile Filter Button */}
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" className="md:hidden">
+                  <SlidersHorizontal className="w-4 h-4 mr-2" />
+                  Filters
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right">
+                <SheetHeader>
+                  <SheetTitle>Filters</SheetTitle>
+                </SheetHeader>
+                <div className="mt-6">
+                  <FilterContent />
+                </div>
+              </SheetContent>
+            </Sheet>
+          </div>
+        </div>
+
+        {/* Mobile View Toggle */}
+        <div className="md:hidden flex items-center justify-center mb-4">
+          <div className="flex items-center bg-muted rounded-lg p-1">
+            <Button
+              variant={viewMode === 'list' ? 'default' : 'ghost'}
+              size="sm"
+              className="h-8"
+              onClick={() => setViewMode('list')}
+            >
+              <List className="w-4 h-4 mr-1" />
+              List
+            </Button>
+            <Button
+              variant={viewMode === 'map' ? 'default' : 'ghost'}
+              size="sm"
+              className="h-8"
+              onClick={() => setViewMode('map')}
+            >
+              <Map className="w-4 h-4 mr-1" />
+              Map
+            </Button>
+          </div>
         </div>
 
         <div className="grid md:grid-cols-4 gap-6">
@@ -330,53 +380,75 @@ export default function Search() {
           </div>
 
           {/* Results */}
-          <div className="md:col-span-3 space-y-4">
-            {loading ? (
-              <>
-                <RideCardSkeleton />
-                <RideCardSkeleton />
-                <RideCardSkeleton />
-              </>
-            ) : error ? (
-              <div className="bg-card border border-destructive/50 rounded-xl p-12 text-center">
-                <p className="text-destructive font-medium mb-2">Search Failed</p>
-                <p className="text-muted-foreground mb-4">{error}</p>
-                <Button variant="outline" onClick={() => fetchRides(1, true)}>
-                  Try Again
-                </Button>
+          <div className="md:col-span-3">
+            {viewMode === 'map' ? (
+              /* Map View */
+              <div className="h-[calc(100vh-280px)] min-h-[500px]">
+                {loading ? (
+                  <div className="h-full bg-gradient-to-br from-indigo-100 to-emerald-50 rounded-xl flex items-center justify-center border border-border">
+                    <div className="text-center">
+                      <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-2" />
+                      <p className="text-muted-foreground text-sm">Loading rides...</p>
+                    </div>
+                  </div>
+                ) : (
+                  <SearchMapView 
+                    rides={filteredRides} 
+                    className="h-full"
+                  />
+                )}
               </div>
-            ) : filteredRides.length > 0 ? (
-              <>
-                {filteredRides.map((ride) => (
-                  <RideCard key={ride.id} ride={ride} />
-                ))}
-                {hasMore && !loading && (
-                  <div className="text-center pt-4">
-                    <Button variant="outline" onClick={loadMore}>
-                      Load More Rides
+            ) : (
+              /* List View */
+              <div className="space-y-4">
+                {loading ? (
+                  <>
+                    <RideCardSkeleton />
+                    <RideCardSkeleton />
+                    <RideCardSkeleton />
+                  </>
+                ) : error ? (
+                  <div className="bg-card border border-destructive/50 rounded-xl p-12 text-center">
+                    <p className="text-destructive font-medium mb-2">Search Failed</p>
+                    <p className="text-muted-foreground mb-4">{error}</p>
+                    <Button variant="outline" onClick={() => fetchRides(1, true)}>
+                      Try Again
+                    </Button>
+                  </div>
+                ) : filteredRides.length > 0 ? (
+                  <>
+                    {filteredRides.map((ride) => (
+                      <RideCard key={ride.id} ride={ride} />
+                    ))}
+                    {hasMore && !loading && (
+                      <div className="text-center pt-4">
+                        <Button variant="outline" onClick={loadMore}>
+                          Load More Rides
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="bg-card border border-border rounded-xl p-12 text-center">
+                    <Car className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="font-medium mb-2">No rides found</p>
+                    <p className="text-muted-foreground mb-4">
+                      {rides.length === 0 
+                        ? "No rides match your search. Try different cities or dates."
+                        : "No rides match your filters. Try adjusting them."
+                      }
+                    </p>
+                    <Button variant="link" onClick={() => {
+                      setPriceRange([0, 1000]);
+                      setDepartureTime([]);
+                      setWomenOnly(false);
+                      setPetFriendly(false);
+                      setInstantApproval(false);
+                    }}>
+                      Clear filters
                     </Button>
                   </div>
                 )}
-              </>
-            ) : (
-              <div className="bg-card border border-border rounded-xl p-12 text-center">
-                <Car className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <p className="font-medium mb-2">No rides found</p>
-                <p className="text-muted-foreground mb-4">
-                  {rides.length === 0 
-                    ? "No rides match your search. Try different cities or dates."
-                    : "No rides match your filters. Try adjusting them."
-                  }
-                </p>
-                <Button variant="link" onClick={() => {
-                  setPriceRange([0, 1000]);
-                  setDepartureTime([]);
-                  setWomenOnly(false);
-                  setPetFriendly(false);
-                  setInstantApproval(false);
-                }}>
-                  Clear filters
-                </Button>
               </div>
             )}
           </div>
