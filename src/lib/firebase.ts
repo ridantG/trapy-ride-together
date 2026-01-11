@@ -1,11 +1,11 @@
 // Firebase Cloud Messaging Configuration for Trapy
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyBhsKxV7S2VaVkQ1n9Fq7_fVmHl1JvKxXc", // This is a public API key, safe to include
+  apiKey: "AIzaSyBhsKxV7S2VaVkQ1n9Fq7_fVmHl1JvKxXc",
   authDomain: "trapy-6cb9a.firebaseapp.com",
   projectId: "trapy-6cb9a",
   storageBucket: "trapy-6cb9a.firebasestorage.app",
-  messagingSenderId: "123456789", // Replace with actual sender ID from Firebase console
-  appId: "1:123456789:web:abc123", // Replace with actual app ID from Firebase console
+  messagingSenderId: "181603651790",
+  appId: "1:181603651790:web:e023215cec695d0640c09f",
 };
 
 // VAPID key for web push - get this from Firebase Console > Project Settings > Cloud Messaging
